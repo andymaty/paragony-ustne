@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Program Warsztatowy v18</title>
+    <title>Program Warsztatowy v22</title>
+    <!-- v22 (2026-10-08): poprawki po audycie – opis w pliku CO_POPRAWIONO_v22.md -->
     
     <!-- FontAwesome dla ikon -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -113,11 +114,20 @@
         .btn-primary {
             background: #007bff;
         }
-        
+
         .btn-primary:hover {
             background: #0056b3;
         }
-        
+
+        /* Przycisk „Kopiuj” – tworzy nowy dokument z istniejącego, oryginał zostaje */
+        .btn-copy {
+            background: #fd7e14;
+        }
+
+        .btn-copy:hover {
+            background: #e8690b;
+        }
+
         .table {
             width: 100%;
             border-collapse: collapse;
@@ -944,11 +954,14 @@
                 <input type="number" id="productPrice" step="0.01" placeholder="0.00">
             </div>
             <button class="btn" onclick="addProduct()">Dodaj/aktualizuj</button>
+            <button class="btn btn-primary" onclick="cleanupDictionary()" title="Łączy w jeden wpis takie same nazwy i nazwy z literówkami. Dokumenty w archiwum się nie zmieniają.">Porządkuj słownik (scal podobne nazwy)</button>
+            <p style="font-size:12px;color:#666;margin:6px 0;">To jest lista podpowiedzi przy wpisywaniu pozycji. Na górze są pozycje używane najczęściej. Nowe nazwy dopisują się same przy zapisie dokumentu – ale nazwa różniąca się tylko literówką, wielkością liter czy kropką nie tworzy już nowego wpisu.</p>
             <table class="table" id="productsTable">
                 <thead>
                     <tr>
                         <th>Nazwa</th>
                         <th>Cena</th>
+                        <th title="Ile razy pozycja była użyta w dokumentach">Użyto</th>
                         <th>Akcje</th>
                     </tr>
                 </thead>
@@ -1158,36 +1171,6 @@
                     <button class="btn btn-primary" onclick="importData()">Importuj bazę danych</button>
                     <input type="file" id="importFile" accept=".json" style="display: none;" onchange="handleImport()">
 
-                    <h3>Autotest</h3>
-                    <div class="form-group">
-                        <button class="btn" onclick="runAutotest()">Autotest: uruchom</button>
-                        <button class="btn btn-primary" onclick="restoreAutotestSnapshot()">Przywróć stan sprzed testu</button>
-                    </div>
-                    
-                    <h3>Słownik usług/produktów</h3>
-                    <div class="form-group">
-                        <label>Nazwa:</label>
-                        <input type="text" id="serviceName" placeholder="Nazwa usługi/produktu">
-                    </div>
-                    <div class="form-group">
-                        <label>Cena (zł):</label>
-                        <input type="number" id="servicePrice" step="0.01" placeholder="0.00">
-                    </div>
-                    <button class="btn" onclick="addService()">Dodaj/aktualizuj</button>
-                    
-                    <div style="max-height: 300px; overflow-y: auto; margin-top: 20px;">
-                        <table class="table" id="servicesTable">
-                            <thead>
-                                <tr>
-                                    <th>Nazwa</th>
-                                    <th>Cena</th>
-                                    <th>Akcje</th>
-                                </tr>
-                            </thead>
-                            <tbody id="servicesTableBody">
-                            </tbody>
-                        </table>
-                    </div>
 
                     <h3>Słownik priorytetów wykonania</h3>
                     <div class="form-group">
@@ -1214,7 +1197,7 @@
 
                     <h3>Normalizacja i deduplikacja</h3>
                     <div class="form-group">
-                        <p>Uporządkuj nazwy (trim, pojedyncze spacje) i scal duplikaty w klientach oraz słownikach.</p>
+                        <p>Scala powtórzonych klientów oraz takie same i podobne (literówki) nazwy w słowniku pozycji. Przed wykonaniem pokaże, co połączy.</p>
                         <button class="btn" onclick="normalizeAndDedup(true)">Normalizuj i scal</button>
                     </div>
 
@@ -1634,7 +1617,7 @@ Przykład:
                     <h3>Dane dokumentu</h3>
                     <div class="form-group">
                         <label>Typ:</label>
-                        <select id="documentType">
+                        <select id="documentType" onchange="onDocumentTypeChange()">
                             <option value="kosztorys">Kosztorys</option>
                             <option value="paragon">Paragon</option>
                             <option value="faktura">Faktura</option>
@@ -1645,16 +1628,20 @@ Przykład:
                         <input type="text" id="documentNumber">
                     </div>
                     <div class="form-group">
+                        <label>Data dokumentu:</label>
+                        <input type="date" id="documentDate">
+                    </div>
+                    <div class="form-group">
                         <label>Wystawiający (nazwa/firma/pseudonim):</label>
                         <input type="text" id="documentIssuer" class="issuer-field" list="issuerDatalist">
                         <datalist id="issuerDatalist"></datalist>
                     </div>
                     <div class="form-group">
-                        <label>Adres (opcjonalny):</label>
+                        <label>Adres wystawiającego (opcjonalny):</label>
                         <input type="text" id="documentAddress">
                     </div>
                     <div class="form-group">
-                        <label>NIP (opcjonalny):</label>
+                        <label>NIP wystawiającego (opcjonalny):</label>
                         <input type="text" id="documentNIP">
                     </div>
                     <div class="form-group">
@@ -1673,6 +1660,14 @@ Przykład:
                         <label>Klient:</label>
                         <input type="text" id="documentClient" placeholder="Zacznij pisać..." autocomplete="off" autocapitalize="off" spellcheck="false" data-reset-guard="1" oninput="markDocumentClientTouched(); suggestClients(this.value, 'documentClientSuggestions')">
                         <div id="documentClientSuggestions" class="suggestions"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>NIP klienta (opcjonalny, np. do faktury):</label>
+                        <input type="text" id="documentClientNIP" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label>Adres klienta (opcjonalny):</label>
+                        <input type="text" id="documentClientAddress" autocomplete="off">
                     </div>
                     <div class="form-group">
                         <label>Pojazd:</label>
@@ -1736,6 +1731,7 @@ Przykład:
             
             <div class="modal-actions">
                 <button class="btn" onclick="saveDocument()">Zapisz</button>
+                <button class="btn btn-copy" id="copyDocumentBtn" style="display:none;" onclick="copyCurrentDocument()" title="Nowy dokument na podstawie tego – oryginał zostaje bez zmian">Kopiuj</button>
                 <button class="btn btn-primary" onclick="printDocument()">Drukuj</button>
                 <button class="btn btn-danger" onclick="closeModal('documentModal')">Zamknij</button>
             </div>
@@ -1955,97 +1951,310 @@ Przykład:
 
     <script>
 
-        // =================== FIREBASE SYNC ===================
+        // =================== FIREBASE SYNC (v22) ===================
+        // Zasady działania:
+        //  1. Każda lokalna zmiana ustawia znacznik „niewysłane” w localStorage – przeżywa
+        //     on zamknięcie karty i pracę bez internetu.
+        //  2. Do chmury nic nie wysyłamy, dopóki nie uda się jej najpierw odczytać
+        //     (inaczej komputer ze starą kopią nadpisałby nowsze dane).
+        //  3. Dane z chmury ZASTĘPUJĄ lokalne tylko wtedy, gdy lokalnie nie ma niewysłanych
+        //     zmian. W przeciwnym razie są SCALANE z lokalnymi – nic nie ginie.
+        //  4. Echo własnego zapisu jest ignorowane (wcześniej cofało świeże zmiany).
+        const FB_DIRTY_KEY = 'fbDirty';              // '' = czysto, '1' = niewysłane zmiany, 'R' = lokalne dane mają zastąpić chmurę (import)
+        const FB_DELETES_KEY = 'fbPendingDeletes';   // rekordy usunięte lokalnie, a jeszcze niewysłane
+        const FB_COLLECTIONS = ['clients', 'vehicles', 'orders', 'documents', 'services', 'products', 'priorities'];
+        const FB_SESSION_ID = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        const FB_SETTINGS_KEYS = ['companyName', 'companyAddress', 'companyNIP', 'companyPhone', 'companyEmail', 'documentFooter',
+            'simpleMode', 'logoFit', 'printCompact', 'printNoLogo', 'autoFitPrint', 'updatePriceFromDocument'];
         let _fbSyncTimeout = null;
         let _fbListenerActive = false;
+        let _fbInitialLoadDone = false;   // dopóki false – nic nie wysyłamy do chmury
+        let _fbLoading = false;
+        let _fbLoadFailed = false;
+        let _fbPushInFlight = false;
+        let _fbPushAgain = false;
+        let _fbChangeSeq = 0;             // rośnie przy każdej lokalnej zmianie
+        let _fbLastError = '';
+        let _fbLastSyncAt = null;
+        let _fbLastAppliedStamp = '';
+        let _fbSizeWarning = false;
+        let _fbSettingsTimer = null;
+        let _fbSettingsLoaded = false;
+        let _fbRetryLoopStarted = false;
 
-        // Zapisz wszystkie dane główne do Firebase (z debounce 2s)
-        function syncToFirebase() {
-            if (!window._firebaseReady || !window._fbDoc) return;
-            if (_fbSyncTimeout) clearTimeout(_fbSyncTimeout);
-            _fbSyncTimeout = setTimeout(async function() {
-                try {
-                    const data = {
-                        clients: clients || [],
-                        vehicles: vehicles || [],
-                        orders: orders || [],
-                        documents: documents || [],
-                        services: services || [],
-                        products: products || [],
-                        priorities: priorities || [],
-                        updatedAt: window._fbServerTimestamp()
-                    };
-                    await window._fbSetDoc(window._fbDoc, data);
-                    console.log('[Firebase] Dane zsynchronizowane ✓');
-                    showFirebaseStatus('✓ Zsynchronizowano', '#28a745');
-                } catch(e) {
-                    console.error('[Firebase] Błąd zapisu:', e);
-                    showFirebaseStatus('⚠ Błąd sync', '#dc3545');
-                }
-            }, 2000);
+        // Dzisiejsza data wg zegara komputera (toISOString() dawało datę UTC,
+        // czyli po północy jeszcze „wczoraj”).
+        function todayLocalISO(d) {
+            const x = d || new Date();
+            return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
         }
 
-        // Zapisz ustawienia firmy do Firebase
-        async function syncSettingsToFirebase() {
-            if (!window._firebaseReady || !window._fbSettingsDoc) return;
-            try {
-                const settings = {
-                    companyName: localStorage.getItem('companyName') || '',
-                    companyAddress: localStorage.getItem('companyAddress') || '',
-                    companyNIP: localStorage.getItem('companyNIP') || '',
-                    companyPhone: localStorage.getItem('companyPhone') || '',
-                    companyEmail: localStorage.getItem('companyEmail') || '',
-                    documentFooter: localStorage.getItem('documentFooter') || '',
-                    simpleMode: localStorage.getItem('simpleMode') || 'false',
-                    logoFit: localStorage.getItem('logoFit') || 'contain',
-                    updatedAt: window._fbServerTimestamp()
-                };
-                await window._fbSetDoc(window._fbSettingsDoc, settings);
-            } catch(e) {
-                console.error('[Firebase] Błąd zapisu ustawień:', e);
+        function fbGetLocal(coll) {
+            switch (coll) {
+                case 'clients': return clients;
+                case 'vehicles': return vehicles;
+                case 'orders': return orders;
+                case 'documents': return documents;
+                case 'services': return services;
+                case 'products': return products;
+                case 'priorities': return priorities;
+            }
+            return [];
+        }
+        function fbSetLocal(coll, arr) {
+            switch (coll) {
+                case 'clients': clients = arr; break;
+                case 'vehicles': vehicles = arr; break;
+                case 'orders': orders = arr; break;
+                case 'documents': documents = arr; break;
+                case 'services': services = arr; break;
+                case 'products': products = arr; break;
+                case 'priorities': priorities = arr; break;
             }
         }
 
-        // Wczytaj dane z Firebase przy starcie
-        async function loadFromFirebase() {
-            if (!window._firebaseReady || !window._fbDoc) return;
+        // Klucz rozpoznający „ten sam rekord” na dwóch urządzeniach
+        function fbItemKey(coll, it) {
+            if (!it) return '';
+            switch (coll) {
+                case 'documents': return String(it.type || '') + '|' + String(it.number || '').trim();
+                case 'clients': return normKey(it.name);
+                case 'vehicles': {
+                    const reg = String(it.registration || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    if (reg) return 'REG:' + reg;
+                    const vin = String(it.vin || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    if (vin) return 'VIN:' + vin;
+                    return 'BM:' + normKey((it.owner || '') + '|' + (it.brand || '') + '|' + (it.model || ''));
+                }
+                case 'orders': return String(it.date || '') + '|' + normKey(it.description) + '|' + normKey(it.client);
+                case 'products':
+                case 'services': return itemKey(it.name);
+                case 'priorities': return normKey(it.name);
+            }
+            return '';
+        }
+
+        function fbDirtyState() { try { return localStorage.getItem(FB_DIRTY_KEY) || ''; } catch (e) { return ''; } }
+        function fbIsDirty() { return fbDirtyState() !== ''; }
+        function fbMarkDirty() {
+            try { if (fbDirtyState() !== 'R') localStorage.setItem(FB_DIRTY_KEY, '1'); } catch (e) {}
+        }
+        // Po imporcie / wczytaniu bazy z pliku: lokalne dane mają w całości zastąpić chmurę
+        function fbMarkLocalAuthoritative() {
+            try { localStorage.setItem(FB_DIRTY_KEY, 'R'); } catch (e) {}
+        }
+        function fbClearDirty() {
+            try { localStorage.removeItem(FB_DIRTY_KEY); localStorage.removeItem(FB_DELETES_KEY); } catch (e) {}
+        }
+        function fbGetPendingDeletes() {
+            try { return JSON.parse(localStorage.getItem(FB_DELETES_KEY) || '{}') || {}; } catch (e) { return {}; }
+        }
+        function markDeletedKey(coll, key) {
+            if (!key) return;
             try {
-                showFirebaseStatus('⟳ Ładowanie z chmury...', '#007bff');
-                const snap = await window._fbGetDoc(window._fbDoc);
-                if (snap.exists()) {
-                    const data = snap.data();
-                    if (data.clients) { clients = data.clients; localStorage.setItem('clients', JSON.stringify(clients)); }
-                    if (data.vehicles) { vehicles = data.vehicles; localStorage.setItem('vehicles', JSON.stringify(vehicles)); }
-                    if (data.orders) { orders = data.orders; localStorage.setItem('orders', JSON.stringify(orders)); }
-                    if (data.documents) { documents = data.documents; localStorage.setItem('documents', JSON.stringify(documents)); }
-                    if (data.services) { services = data.services; localStorage.setItem('services', JSON.stringify(services)); }
-                    if (data.products) { products = data.products; localStorage.setItem('products', JSON.stringify(products)); }
-                    if (data.priorities) { priorities = data.priorities; localStorage.setItem('priorities', JSON.stringify(priorities)); }
-                    console.log('[Firebase] Dane wczytane z chmury ✓');
-                    showFirebaseStatus('✓ Dane z chmury', '#28a745');
+                const m = fbGetPendingDeletes();
+                m[coll + '::' + key] = Date.now();
+                localStorage.setItem(FB_DELETES_KEY, JSON.stringify(m));
+            } catch (e) {}
+        }
+        // Zapamiętaj usunięcie, żeby scalanie z chmurą nie „wskrzesiło” rekordu
+        function markDeleted(coll, item) { markDeletedKey(coll, fbItemKey(coll, item)); }
+
+        // Wywoływane po każdej lokalnej zmianie (z saveData)
+        function syncToFirebase() {
+            _fbChangeSeq++;
+            fbMarkDirty();
+            fbSchedulePush();
+            fbRefreshStatus();
+        }
+        function fbSchedulePush() {
+            if (_fbSyncTimeout) clearTimeout(_fbSyncTimeout);
+            _fbSyncTimeout = setTimeout(fbPushNow, 1200);
+        }
+        // Przy chowaniu/zamykaniu karty nie czekamy na opóźnienie
+        function fbFlushPending() {
+            if (_fbSyncTimeout) fbPushNow();
+        }
+
+        async function fbPushNow() {
+            if (_fbSyncTimeout) { clearTimeout(_fbSyncTimeout); _fbSyncTimeout = null; }
+            if (!window._firebaseReady || !window._fbDoc || !_fbInitialLoadDone || !fbIsDirty()) { fbRefreshStatus(); return; }
+            if (_fbPushInFlight) { _fbPushAgain = true; return; }
+            _fbPushInFlight = true;
+            const seqAtStart = _fbChangeSeq;
+            try {
+                const plain = {};
+                FB_COLLECTIONS.forEach(function(coll) { plain[coll] = fbGetLocal(coll) || []; });
+                // Przez JSON: Firestore odrzuca pola „undefined”, a przy okazji znamy rozmiar
+                const json = JSON.stringify(plain);
+                const data = JSON.parse(json);
+                _fbSizeWarning = json.length > 700000;
+                data.updatedAt = window._fbServerTimestamp();
+                data.writer = FB_SESSION_ID;
+                fbRefreshStatus();
+                await window._fbSetDoc(window._fbDoc, data);
+                _fbLastError = '';
+                _fbLastSyncAt = new Date();
+                // Znacznik zdejmujemy tylko, gdy w trakcie wysyłki nic się nie zmieniło
+                if (seqAtStart === _fbChangeSeq) fbClearDirty();
+                console.log('[Firebase] Dane zsynchronizowane ✓');
+            } catch (e) {
+                console.error('[Firebase] Błąd zapisu:', e);
+                _fbLastError = String((e && (e.code || e.message)) || 'nieznany błąd');
+            } finally {
+                _fbPushInFlight = false;
+                const again = _fbPushAgain || (seqAtStart !== _fbChangeSeq);
+                _fbPushAgain = false;
+                if (_fbLastError) {
+                    if (_fbSyncTimeout) clearTimeout(_fbSyncTimeout);
+                    _fbSyncTimeout = setTimeout(fbPushNow, 30000);
+                } else if (again && fbIsDirty()) {
+                    fbSchedulePush();
+                }
+                fbRefreshStatus();
+            }
+        }
+
+        // Scalanie: lokalne zmiany + to, co przyszło z chmury. Przy tym samym dokumencie
+        // wygrywa nowszy (pole „modified”), przy pozostałych rekordach – lokalny.
+        function fbMergeCloudIntoLocal(data) {
+            const dels = fbGetPendingDeletes();
+            FB_COLLECTIONS.forEach(function(coll) {
+                const cloudArr = Array.isArray(data[coll]) ? data[coll] : [];
+                const localArr = fbGetLocal(coll) || [];
+                if (coll === 'priorities') {
+                    if (!localArr.length && cloudArr.length) fbSetLocal(coll, cloudArr);
+                    return;
+                }
+                const idx = new Map();
+                localArr.forEach(function(it, i) { const k = fbItemKey(coll, it); if (k && !idx.has(k)) idx.set(k, i); });
+                cloudArr.forEach(function(ci) {
+                    const k = fbItemKey(coll, ci);
+                    if (!k) return;
+                    if (idx.has(k)) {
+                        const li = idx.get(k);
+                        if (Number(ci.modified || 0) > Number((localArr[li] && localArr[li].modified) || 0)) localArr[li] = ci;
+                    } else if (!dels[coll + '::' + k]) {
+                        localArr.push(ci);
+                        idx.set(k, localArr.length - 1);
+                    }
+                });
+                fbSetLocal(coll, localArr);
+            });
+        }
+        function fbReplaceLocalWithCloud(data) {
+            FB_COLLECTIONS.forEach(function(coll) {
+                if (Array.isArray(data[coll])) fbSetLocal(coll, data[coll]);
+            });
+        }
+
+        // Okna edycji trzymają numer wiersza – po podmianie danych trzeba go odnaleźć na nowo,
+        // inaczej „Zapisz” mogłoby trafić w inny rekord.
+        function fbCaptureEditing() {
+            return {
+                doc: (currentEditingDocument !== null) ? documents[currentEditingDocument] : null,
+                client: (currentEditingClient !== null) ? clients[currentEditingClient] : null,
+                vehicle: (currentEditingVehicle !== null) ? vehicles[currentEditingVehicle] : null,
+                order: (currentEditingOrder !== null) ? orders[currentEditingOrder] : null,
+                mileage: (currentMileageVehicle !== null) ? vehicles[currentMileageVehicle] : null
+            };
+        }
+        function fbFindSame(coll, obj) {
+            if (!obj) return -1;
+            const arr = fbGetLocal(coll) || [];
+            const direct = arr.indexOf(obj);
+            if (direct !== -1) return direct;
+            const k = fbItemKey(coll, obj);
+            if (!k) return -1;
+            return arr.findIndex(function(x) { return fbItemKey(coll, x) === k; });
+        }
+        function fbRestoreEditing(cap) {
+            if (!cap) return;
+            if (cap.doc) {
+                let i = fbFindSame('documents', cap.doc);
+                if (i === -1) {
+                    // Dokument otwarty do edycji zniknął z chmury – zostaw go, użytkownik nad nim pracuje
+                    documents.push(cap.doc);
+                    i = documents.length - 1;
+                    _fbChangeSeq++;
+                    fbMarkDirty();
+                }
+                currentEditingDocument = i;
+            }
+            if (cap.client) { const i = fbFindSame('clients', cap.client); currentEditingClient = (i === -1) ? null : i; }
+            if (cap.vehicle) { const i = fbFindSame('vehicles', cap.vehicle); currentEditingVehicle = (i === -1) ? null : i; }
+            if (cap.order) { const i = fbFindSame('orders', cap.order); currentEditingOrder = (i === -1) ? null : i; }
+            if (cap.mileage) {
+                const i = fbFindSame('vehicles', cap.mileage);
+                if (i === -1) {
+                    currentMileageVehicle = null;
+                    const mm = document.getElementById('mileageModal');
+                    if (mm) mm.style.display = 'none';
                 } else {
-                    // Brak danych w Firebase - wyślij lokalne
+                    currentMileageVehicle = i;
+                }
+            }
+        }
+
+        function fbStamp(ts) {
+            return (ts && typeof ts.seconds !== 'undefined') ? (ts.seconds + '.' + (ts.nanoseconds || 0)) : '';
+        }
+
+        // Wspólna obsługa danych z chmury (start programu i zmiany z innych urządzeń)
+        function fbHandleCloudData(data) {
+            if (!data) return;
+            const stamp = fbStamp(data.updatedAt);
+            if (_fbInitialLoadDone && stamp && stamp === _fbLastAppliedStamp) return; // to już mamy
+            const cap = fbCaptureEditing();
+            const state = fbDirtyState();
+            if (state === '') {
+                fbReplaceLocalWithCloud(data);
+            } else if (state !== 'R') {
+                fbMergeCloudIntoLocal(data);
+            }
+            _fbLastAppliedStamp = stamp;
+            _fbInitialLoadDone = true;
+            fbRestoreEditing(cap);
+            _dataVersion++;
+            try { loadData(); } catch (e) { console.error('[Firebase] Błąd odświeżania widoku:', e); }
+            persistLocal();
+            try { filterClients(); filterVehicles(); filterOrders(); filterProducts(); } catch (e) {}
+            try {
+                const dm = document.getElementById('documentModal');
+                if (dm && dm.style.display === 'block') { renderPositionsTable(); updateDocumentTotal(); }
+            } catch (e) {}
+            if (fbIsDirty()) fbSchedulePush();
+            fbRefreshStatus();
+        }
+
+        // Wczytaj dane z chmury przy starcie
+        async function loadFromFirebase() {
+            if (!window._firebaseReady || !window._fbDoc) { fbRefreshStatus(); return false; }
+            if (_fbLoading) return false;
+            _fbLoading = true;
+            fbRefreshStatus();
+            try {
+                const snap = await window._fbGetDoc(window._fbDoc);
+                _fbLoadFailed = false;
+                if (snap.exists()) {
+                    fbHandleCloudData(snap.data());
+                    console.log('[Firebase] Dane wczytane z chmury ✓');
+                } else {
+                    // Pusta chmura (pierwsze uruchomienie) – wyślij to, co jest lokalnie
                     console.log('[Firebase] Brak danych w chmurze, wysyłam lokalne...');
-                    syncToFirebase();
+                    _fbInitialLoadDone = true;
+                    fbMarkDirty();
+                    fbSchedulePush();
                 }
-
-                // Wczytaj ustawienia firmy z Firebase
-                const settSnap = await window._fbGetDoc(window._fbSettingsDoc);
-                if (settSnap.exists()) {
-                    const s = settSnap.data();
-                    if (s.companyName) localStorage.setItem('companyName', s.companyName);
-                    if (s.companyAddress) localStorage.setItem('companyAddress', s.companyAddress);
-                    if (s.companyNIP) localStorage.setItem('companyNIP', s.companyNIP);
-                    if (s.companyPhone) localStorage.setItem('companyPhone', s.companyPhone);
-                    if (s.companyEmail) localStorage.setItem('companyEmail', s.companyEmail);
-                    if (s.documentFooter) localStorage.setItem('documentFooter', s.documentFooter);
-                    if (s.simpleMode) localStorage.setItem('simpleMode', s.simpleMode);
-                    if (s.logoFit) localStorage.setItem('logoFit', s.logoFit);
-                }
-
-            } catch(e) {
+                try { await fbLoadSettings(); } catch (e) { console.error('[Firebase] Błąd wczytywania ustawień:', e); }
+                return true;
+            } catch (e) {
                 console.error('[Firebase] Błąd wczytywania:', e);
-                showFirebaseStatus('⚠ Offline (lokalne dane)', '#ffc107');
+                _fbLoadFailed = true;
+                return false;
+            } finally {
+                _fbLoading = false;
+                fbRefreshStatus();
             }
         }
 
@@ -2053,43 +2262,141 @@ Przykład:
         function startFirebaseListener() {
             if (_fbListenerActive || !window._firebaseReady) return;
             _fbListenerActive = true;
-            let firstCall = true;
             window._fbOnSnapshot(window._fbDoc, function(snap) {
-                if (firstCall) { firstCall = false; return; } // Pomiń pierwsze wywołanie (to nasze dane)
-                if (!snap.exists()) return;
-                const data = snap.data();
-                // Sprawdź czy dane są nowsze niż lokalne (by uniknąć pętli)
-                let changed = false;
-                if (data.clients) { clients = data.clients; localStorage.setItem('clients', JSON.stringify(clients)); changed = true; }
-                if (data.vehicles) { vehicles = data.vehicles; localStorage.setItem('vehicles', JSON.stringify(vehicles)); changed = true; }
-                if (data.orders) { orders = data.orders; localStorage.setItem('orders', JSON.stringify(orders)); changed = true; }
-                if (data.documents) { documents = data.documents; localStorage.setItem('documents', JSON.stringify(documents)); changed = true; }
-                if (data.services) { services = data.services; localStorage.setItem('services', JSON.stringify(services)); changed = true; }
-                if (data.products) { products = data.products; localStorage.setItem('products', JSON.stringify(products)); changed = true; }
-                if (data.priorities) { priorities = data.priorities; localStorage.setItem('priorities', JSON.stringify(priorities)); changed = true; }
-                if (changed) {
-                    console.log('[Firebase] Dane zaktualizowane z innego urządzenia');
-                    showFirebaseStatus('↓ Zaktualizowano z chmury', '#17a2b8');
-                    try { loadData(); } catch(e) {}
+                try {
+                    if (!snap.exists()) return;
+                    if (snap.metadata && (snap.metadata.hasPendingWrites || snap.metadata.fromCache)) return; // własny, niepotwierdzony zapis
+                    const data = snap.data();
+                    if (data && data.writer === FB_SESSION_ID) return; // echo własnego zapisu
+                    const wasLoaded = _fbInitialLoadDone;
+                    fbHandleCloudData(data);
+                    if (wasLoaded) console.log('[Firebase] Dane zaktualizowane z innego urządzenia');
+                } catch (e) {
+                    console.error('[Firebase] Błąd obsługi danych z chmury:', e);
                 }
+            }, function(err) {
+                console.error('[Firebase] Błąd nasłuchu:', err);
+                _fbListenerActive = false;
             });
         }
 
-        // Wyświetl status synchronizacji
-        function showFirebaseStatus(msg, color) {
+        // Ponawianie: po powrocie internetu i co minutę, jeśli coś czeka
+        function startFirebaseRetryLoop() {
+            if (_fbRetryLoopStarted) return;
+            _fbRetryLoopStarted = true;
+            const retry = function() {
+                if (!window._firebaseReady) { fbRefreshStatus(); return; }
+                if (!_fbInitialLoadDone) {
+                    loadFromFirebase().then(function() { startFirebaseListener(); });
+                } else {
+                    if (!_fbListenerActive) startFirebaseListener();
+                    if (fbIsDirty() && !_fbPushInFlight && !_fbSyncTimeout) fbPushNow();
+                }
+            };
+            window.addEventListener('online', retry);
+            window.addEventListener('offline', fbRefreshStatus);
+            setInterval(retry, 60000);
+            document.addEventListener('visibilitychange', function() {
+                if (document.visibilityState === 'hidden') fbFlushPending();
+            });
+        }
+
+        // ---- Ustawienia firmy ----
+        function syncSettingsToFirebase() {
+            if (_fbSettingsTimer) clearTimeout(_fbSettingsTimer);
+            _fbSettingsTimer = setTimeout(fbPushSettingsNow, 1500);
+        }
+        async function fbPushSettingsNow() {
+            if (_fbSettingsTimer) { clearTimeout(_fbSettingsTimer); _fbSettingsTimer = null; }
+            if (!window._firebaseReady || !window._fbSettingsDoc) return;
+            if (!_fbSettingsLoaded) return; // najpierw odczyt z chmury – wyśle się zaraz po nim
+            try {
+                const settings = {};
+                FB_SETTINGS_KEYS.forEach(function(k) {
+                    const v = localStorage.getItem(k);
+                    if (v !== null) settings[k] = v;
+                });
+                const logo = localStorage.getItem('companyLogo') || '';
+                if (logo.length <= 600000) settings.companyLogo = logo;
+                settings.modifiedMs = Number(localStorage.getItem('settingsModified') || 0) || Date.now();
+                settings.updatedAt = window._fbServerTimestamp();
+                await window._fbSetDoc(window._fbSettingsDoc, settings);
+            } catch (e) {
+                console.error('[Firebase] Błąd zapisu ustawień:', e);
+            }
+        }
+        async function fbLoadSettings() {
+            if (!window._fbSettingsDoc) return;
+            const settSnap = await window._fbGetDoc(window._fbSettingsDoc);
+            const localMs = Number(localStorage.getItem('settingsModified') || 0);
+            let cloudMs = 0;
+            if (settSnap.exists()) {
+                const s = settSnap.data();
+                cloudMs = Number(s.modifiedMs || 0);
+                try {
+                    if (cloudMs && cloudMs >= localMs) {
+                        // Chmura nowsza – bierzemy wszystko, także wyczyszczone pola
+                        FB_SETTINGS_KEYS.forEach(function(k) { if (typeof s[k] === 'string') localStorage.setItem(k, s[k]); });
+                        if (typeof s.companyLogo === 'string') {
+                            companyLogo = s.companyLogo;
+                            localStorage.setItem('companyLogo', s.companyLogo);
+                        }
+                        localStorage.setItem('settingsModified', String(cloudMs));
+                    } else if (!cloudMs && !localMs) {
+                        // Zapis ze starszej wersji programu – jak dotąd: tylko niepuste pola
+                        ['companyName', 'companyAddress', 'companyNIP', 'companyPhone', 'companyEmail', 'documentFooter', 'simpleMode', 'logoFit'].forEach(function(k) {
+                            if (s[k]) localStorage.setItem(k, String(s[k]));
+                        });
+                    }
+                } catch (e) { console.error('[Firebase] Nie udało się zapisać ustawień lokalnie:', e); }
+            }
+            _fbSettingsLoaded = true;
+            if (localMs > cloudMs) fbPushSettingsNow();
+            try { loadCompanySettings(); rebuildIssuerDatalist(); } catch (e) {}
+        }
+
+        // ---- Stały wskaźnik stanu synchronizacji (prawy dolny róg) ----
+        function fbRefreshStatus() {
+            try {
+                if (!window._firebaseReady) {
+                    showFirebaseStatus('⚠ Brak połączenia z chmurą – dane zapisują się tylko na tym komputerze', '#d39e00', false);
+                } else if (_fbLastError) {
+                    showFirebaseStatus('⚠ Błąd synchronizacji (' + _fbLastError + ') – ponowię próbę', '#dc3545', false);
+                } else if (!_fbInitialLoadDone) {
+                    if (_fbLoadFailed) showFirebaseStatus('⚠ Brak połączenia z chmurą – pracujesz na danych z tego komputera, zmiany wyślą się później', '#d39e00', false);
+                    else showFirebaseStatus('⟳ Ładowanie z chmury...', '#007bff', false);
+                } else if (fbIsDirty()) {
+                    if (navigator.onLine === false) showFirebaseStatus('⚠ Brak internetu – zmiany zapisane na tym komputerze, wyślą się później', '#d39e00', false);
+                    else showFirebaseStatus('⟳ Wysyłanie zmian...', '#007bff', false);
+                } else if (_fbSizeWarning) {
+                    showFirebaseStatus('⚠ Zsynchronizowano, ale baza zbliża się do limitu chmury (1 MB) – daj znać', '#d39e00', false);
+                } else {
+                    const t = _fbLastSyncAt ? (' ' + String(_fbLastSyncAt.getHours()).padStart(2, '0') + ':' + String(_fbLastSyncAt.getMinutes()).padStart(2, '0')) : '';
+                    showFirebaseStatus('✓ Zsynchronizowano' + t, '#28a745', true);
+                }
+            } catch (e) {}
+        }
+        function showFirebaseStatus(msg, color, dim) {
             let el = document.getElementById('_fbStatus');
             if (!el) {
+                if (!document.body) return;
                 el = document.createElement('div');
                 el.id = '_fbStatus';
-                el.style.cssText = 'position:fixed;bottom:10px;right:10px;padding:6px 12px;border-radius:4px;' +
-                    'font-size:12px;color:white;z-index:9999;transition:opacity 0.5s;pointer-events:none;';
+                el.title = 'Stan synchronizacji z chmurą. Kliknij, aby spróbować teraz.';
+                el.style.cssText = 'position:fixed;bottom:10px;right:10px;padding:6px 12px;border-radius:4px;max-width:60vw;' +
+                    'font-size:12px;color:white;z-index:9999;transition:opacity 0.5s;cursor:pointer;';
+                el.addEventListener('click', function() {
+                    if (!_fbInitialLoadDone) loadFromFirebase().then(function() { startFirebaseListener(); });
+                    else fbPushNow();
+                });
                 document.body.appendChild(el);
             }
             el.style.background = color;
             el.style.opacity = '1';
             el.textContent = '☁ ' + msg;
             clearTimeout(el._hideTimer);
-            el._hideTimer = setTimeout(function() { el.style.opacity = '0'; }, 4000);
+            // Stan „OK” przygasa, ale nie znika; ostrzeżenia zostają w pełni widoczne
+            if (dim) el._hideTimer = setTimeout(function() { el.style.opacity = '0.45'; }, 4000);
         }
         // =================== KONIEC FIREBASE SYNC ===================
 
@@ -2265,29 +2572,28 @@ Przykład:
         // Funkcja inicjalizacji po zalogowaniu
         function initializeAppAfterLogin() {
             showSection('clients');
-            // Najpierw wczytaj z Firebase, potem odśwież UI
+            // Najpierw pokaż dane zapisane na tym komputerze (od razu), potem dociągnij chmurę.
+            // Wcześniej formularz ustawień był pusty do czasu odpowiedzi chmury i szybki zapis
+            // potrafił wyczyścić dane firmy.
+            try { loadData(); } catch (e) { console.error('Błąd wczytywania danych lokalnych:', e); }
+            try { loadCompanySettings(); } catch (e) { console.error('Błąd wczytywania ustawień:', e); }
             (async function() {
                 await loadFromFirebase();
-                loadData();
-                loadCompanySettings();
                 startFirebaseListener();
             })();
+            startFirebaseRetryLoop();
             // Autosejw ustawień + przycisk Zapisz
             try {
                 ['companyName','companyAddress','companyNIP','companyPhone','companyEmail','documentFooter'].forEach(function(id){
                     const el = document.getElementById(id);
-                    if (el) el.addEventListener('input', function(){ saveCompanySettings(); rebuildIssuerDatalist(); applyLogoPreviewStyle(); });
+                    if (el) el.addEventListener('input', function(){ saveCompanySettings(); rebuildIssuerDatalist(); });
                 });
-                const sm = document.getElementById('simpleMode');
-                if (sm) sm.addEventListener('change', saveCompanySettings);
-                const pc = document.getElementById('printCompact');
-                if (pc) pc.addEventListener('change', saveCompanySettings);
-                const pnl = document.getElementById('printNoLogo');
-                if (pnl) pnl.addEventListener('change', saveCompanySettings);
-                const af = document.getElementById('autoFitPrint');
-                if (af) af.addEventListener('change', saveCompanySettings);
+                ['simpleMode','printCompact','printNoLogo','autoFitPrint','logoFitCover','updatePriceFromDocument'].forEach(function(id){
+                    const el = document.getElementById(id);
+                    if (el) el.addEventListener('change', function(){ saveCompanySettings(); applyLogoPreviewStyle(); });
+                });
                 const saveBtn = document.getElementById('saveSettingsBtn');
-                if (saveBtn) saveBtn.addEventListener('click', function(){ saveCompanySettings(); saveAISettings(false); rebuildIssuerDatalist(); applyLogoPreviewStyle(); alert('Zapisano ustawienia'); });
+                if (saveBtn) saveBtn.addEventListener('click', function(){ saveCompanySettings(true); saveAISettings(false); rebuildIssuerDatalist(); applyLogoPreviewStyle(); alert('Zapisano ustawienia'); });
                 try { loadAISettings(); } catch(e) { console.error('Błąd inicjalizacji AI:', e); }
             } catch (e) { console.error('Błąd inicjalizacji przycisków:', e); }
 
@@ -2297,25 +2603,26 @@ Przykład:
             }
             rebuildIssuerDatalist();
             updateDocumentYearFilter();
-            
+
             // Inicjalizacja ukrywania podpowiedzi
             setupSuggestionsHiding();
 
             // Rozciągane okna modalne + zapamiętywanie rozmiaru i maksymalizacji
             try { initResizableModals(); } catch(e) { console.error('Błąd inicjalizacji okien:', e); }
-            
+
             // Inicjalizacja UI statystyk
-            try { initStatsUI(); } catch(e) {}
+            try { initStatsUI(); } catch(e) { console.error('Błąd inicjalizacji statystyk:', e); }
 
             // Inicjalizacja priorytetów
-            try { displayPriorities(); refreshPrioritySelect(); } catch(e) {}
-            
-            // Automatyczne zapisywanie przed zamknięciem
+            try { displayPriorities(); refreshPrioritySelect(); } catch(e) { console.error('Błąd inicjalizacji priorytetów:', e); }
+
+            // Przed zamknięciem: wypchnij czekające zmiany do chmury i zrób kopię
             window.addEventListener('beforeunload', function() {
+                fbFlushPending();
                 autoBackup();
             });
-            
-            // Automatyczne zapisywanie co 5 minut
+
+            // Automatyczna kopia co 5 minut (tylko gdy coś się zmieniło)
             setInterval(autoBackup, 300000);
         }
 
@@ -2389,6 +2696,12 @@ Przykład:
 
         // Funkcje modali
         function closeModal(modalId) {
+            // Nowy, niezapisany dokument z pozycjami – nie zamykaj przez przypadek
+            if (modalId === 'documentModal' && currentEditingDocument === null &&
+                Array.isArray(window.tempPositions) && window.tempPositions.length > 0) {
+                if (!confirm('Ten dokument nie został zapisany. Zamknąć bez zapisywania?')) return;
+                window.tempPositions = [];
+            }
             const el = document.getElementById(modalId);
             if (el) el.style.display = 'none';
             // Kasuj tylko zmienne powiązane z danym modalem
@@ -2530,6 +2843,7 @@ Przykład:
             
             if (currentEditingClient !== null) {
                 // Scal z istniejącym rekordem, by nie zgubić pól spoza formularza (np. adresu z AI)
+                if (fbItemKey('clients', clients[currentEditingClient]) !== fbItemKey('clients', client)) markDeleted('clients', clients[currentEditingClient]);
                 clients[currentEditingClient] = Object.assign({}, clients[currentEditingClient], client);
             } else {
                 clients.push(client);
@@ -2542,6 +2856,7 @@ Przykład:
 
         function deleteClient(index) {
             if (confirm('Czy na pewno chcesz usunąć tego klienta?')) {
+                markDeleted('clients', clients[index]);
                 clients.splice(index, 1);
                 saveData();
                 displayClients();
@@ -2653,17 +2968,18 @@ Przykład:
                 // Jeśli przebieg się zmienił, dopisz wpis do historii
                 if (vehicle.mileage && vehicle.mileage !== previousVehicle.mileage) {
                     vehicle.mileageHistory.push({
-                        date: new Date().toISOString().split('T')[0],
+                        date: todayLocalISO(),
                         mileage: vehicle.mileage
                     });
                 }
                 // Scal z istniejącym rekordem, by nie zgubić pól spoza formularza (np. dane ze skanera)
+                if (fbItemKey('vehicles', previousVehicle) !== fbItemKey('vehicles', vehicle)) markDeleted('vehicles', previousVehicle);
                 vehicles[currentEditingVehicle] = Object.assign({}, previousVehicle, vehicle);
             } else {
                 // Dodaj początkowy przebieg do historii
                 if (mileage) {
                     vehicle.mileageHistory = [{
-                        date: new Date().toISOString().split('T')[0],
+                        date: todayLocalISO(),
                         mileage: parseInt(mileage)
                     }];
                 }
@@ -2677,6 +2993,7 @@ Przykład:
 
         function deleteVehicle(index) {
             if (confirm('Czy na pewno chcesz usunąć ten pojazd?')) {
+                markDeleted('vehicles', vehicles[index]);
                 vehicles.splice(index, 1);
                 saveData();
                 displayVehicles();
@@ -2701,7 +3018,7 @@ Przykład:
             }
             
             const vehicle = vehicles[currentMileageVehicle];
-            const currentDate = new Date().toISOString().split('T')[0];
+            const currentDate = todayLocalISO();
             
             // Dodaj do historii przebiegu
             if (!vehicle.mileageHistory) {
@@ -2772,7 +3089,7 @@ Przykład:
             // Zachowaj oryginalną datę przy edycji; dla nowych zleceń ustaw dzisiejszą
             const existingOrder = (currentEditingOrder !== null) ? orders[currentEditingOrder] : null;
             const order = {
-                date: (existingOrder && existingOrder.date) ? existingOrder.date : new Date().toISOString().split('T')[0],
+                date: (existingOrder && existingOrder.date) ? existingOrder.date : todayLocalISO(),
                 description: description,
                 client: client,
                 vehicle: vehicle,
@@ -2791,6 +3108,7 @@ Przykład:
 
         function deleteOrder(index) {
             if (confirm('Czy na pewno chcesz usunąć to zlecenie?')) {
+                markDeleted('orders', orders[index]);
                 orders.splice(index, 1);
                 saveData();
                 displayOrders();
@@ -2907,6 +3225,9 @@ Przykład:
             clearInputHard('documentClient');
             clearInputHard('documentVehicle');
             document.getElementById('documentNotes').value = '';
+            document.getElementById('documentDate').value = todayLocalISO();
+            document.getElementById('documentClientNIP').value = '';
+            document.getElementById('documentClientAddress').value = '';
             const pmEl = document.getElementById('paymentMethod'); if (pmEl) pmEl.value = '';
             const paEl = document.getElementById('paidAmount'); if (paEl) paEl.value = '';
             
@@ -2915,7 +3236,8 @@ Przykład:
             document.getElementById('documentPositions').innerHTML = '';
             updateDocumentTotal();
             refreshPrioritySelect();
-            
+            setCopyButtonVisible(false);
+
             document.getElementById('documentModal').style.display = 'block';
         }
 
@@ -2934,6 +3256,9 @@ Przykład:
             documentClientTouched = !!doc.client;
             documentVehicleTouched = !!doc.vehicle;
             document.getElementById('documentNotes').value = doc.notes || '';
+            document.getElementById('documentDate').value = doc.date || '';
+            document.getElementById('documentClientNIP').value = doc.clientNip || '';
+            document.getElementById('documentClientAddress').value = doc.clientAddress || '';
             const pmEl = document.getElementById('paymentMethod'); if (pmEl) pmEl.value = doc.paymentMethod || '';
             const paEl = document.getElementById('paidAmount'); if (paEl) paEl.value = (doc.paidAmount != null ? doc.paidAmount : '');
             
@@ -2943,12 +3268,93 @@ Przykład:
             
             updateDocumentTotal();
             refreshPrioritySelect();
+            setCopyButtonVisible(true);
             document.getElementById('documentModal').style.display = 'block';
         }
 
+        // === KOPIA DOKUMENTU (kosztorys / paragon / faktura) ===
+        // Stary dokument zostaje nietknięty, a jego zawartość ląduje w NOWYM
+        // dokumencie: dzisiejsza data, świeży numer, pozycje skopiowane co do jednej.
+        // Kopię można potem dowolnie przerobić (skreślić pozycję, dołożyć nową,
+        // zmienić typ np. z kosztorysu na fakturę) – oryginał się nie zmienia.
+        function setCopyButtonVisible(visible) {
+            const btn = document.getElementById('copyDocumentBtn');
+            if (btn) btn.style.display = visible ? '' : 'none';
+        }
+
+        function copyDocument(index) {
+            const src = documents[index];
+            if (!src) return;
+
+            // Kopia jest NOWYM dokumentem – nie edytujemy oryginału
+            currentEditingDocument = null;
+            resetDocumentTransientState();
+
+            const type = src.type || 'kosztorys';
+            document.getElementById('documentModalTitle').textContent =
+                'Kopia dokumentu ' + String(type).toUpperCase() + ' ' + (src.number || '') + ' (oryginał zostaje)';
+            document.getElementById('documentType').value = type;
+            // Świeży numer w serii danego typu – stary numer zostaje przy oryginale
+            document.getElementById('documentNumber').value = generateDocNumber(type);
+            document.getElementById('documentIssuer').value = src.issuer || '';
+            document.getElementById('documentAddress').value = src.address || '';
+            document.getElementById('documentNIP').value = src.nip || '';
+            document.getElementById('documentClient').value = src.client || '';
+            document.getElementById('documentVehicle').value = src.vehicle || '';
+            // Bez tych dwóch znaczników zapis potraktowałby pola jako nieruszane i wyczyścił je
+            documentClientTouched = !!src.client;
+            documentVehicleTouched = !!src.vehicle;
+            document.getElementById('documentNotes').value = src.notes || '';
+            document.getElementById('documentDate').value = todayLocalISO();
+            document.getElementById('documentClientNIP').value = src.clientNip || '';
+            document.getElementById('documentClientAddress').value = src.clientAddress || '';
+            const pmEl = document.getElementById('paymentMethod'); if (pmEl) pmEl.value = src.paymentMethod || '';
+            const paEl = document.getElementById('paidAmount'); if (paEl) paEl.value = (src.paidAmount != null ? src.paidAmount : '');
+
+            // Głęboka kopia pozycji – edycja kopii nie może ruszyć pozycji oryginału
+            window.tempPositions = (src.positions || []).map(function(p){
+                return {
+                    name: (p && p.name) || '',
+                    quantity: Number(p && p.quantity) || 0,
+                    price: Number(p && p.price) || 0,
+                    notes: (p && p.notes) || '',
+                    priority: (p && p.priority) || ''
+                };
+            });
+
+            renderPositionsTable();
+            updateDocumentTotal();
+            refreshPrioritySelect();
+            setCopyButtonVisible(false);
+            document.getElementById('documentModal').style.display = 'block';
+        }
+
+        // „Kopiuj” z otwartego okna dokumentu – to samo, tylko bez wracania do listy
+        function copyCurrentDocument() {
+            if (currentEditingDocument === null) return;
+            if (!confirm('Zrobić kopię tego dokumentu?\n\nOryginał zostanie bez zmian, a Ty będziesz edytować nowy dokument z dzisiejszą datą.\nNiezapisane zmiany w tym oknie nie przejdą do kopii.')) return;
+            copyDocument(currentEditingDocument);
+        }
+
+        // Zmiana typu w NOWYM dokumencie (np. kopia kosztorysu ma być fakturą):
+        // numer nadany automatycznie dostaje prefiks pasujący do nowego typu.
+        // Numer wpisany ręcznie zostaje nietknięty, a dokumentu w edycji nie ruszamy.
+        function onDocumentTypeChange() {
+            if (currentEditingDocument !== null) return;
+            const numEl = document.getElementById('documentNumber');
+            const typeEl = document.getElementById('documentType');
+            if (!numEl || !typeEl) return;
+            if (!/^(FV|PAR|KOS|DOC)\/\d{4}\/\d{2}\/\d{3}$/.test(String(numEl.value).trim())) return;
+            numEl.value = generateDocNumber(typeEl.value);
+        }
+
         function getActivePositions(){
-            if (currentEditingDocument !== null) return documents[currentEditingDocument].positions || [];
-            if (!window.tempPositions) window.tempPositions = [];
+            if (currentEditingDocument !== null && documents[currentEditingDocument]) {
+                const doc = documents[currentEditingDocument];
+                if (!Array.isArray(doc.positions)) doc.positions = [];
+                return doc.positions;
+            }
+            if (!Array.isArray(window.tempPositions)) window.tempPositions = [];
             return window.tempPositions;
         }
 
@@ -2969,214 +3375,206 @@ Przykład:
             });
         }
 
-        function updatePosition(index, field, value) {
-            // Obsłuż zarówno istniejący dokument, jak i nowy (tymczasowe pozycje)
-            const positions = getActivePositions();
-            if (!positions[index]) return;
-            if (field === 'quantity' || field === 'price') {
-                value = parseFloat(value) || 0;
-            }
-            positions[index][field] = value;
-            // Przelicz sumę pozycji
-            const position = positions[index];
-            const sum = (Number(position.quantity)||0) * (Number(position.price)||0);
-            // Aktualizuj wyświetlaną sumę w tabeli
-            const row = document.getElementById('documentPositions').rows[index];
-            if (row && row.cells && row.cells[3]) {
-                row.cells[3].textContent = sum.toFixed(2) + ' zł';
-            }
-            updateDocumentTotal();
+        function calcPositionsTotal(positions) {
+            return round2((positions || []).reduce(function(sum, pos){ return sum + ((Number(pos && pos.quantity)||0) * (Number(pos && pos.price)||0)); }, 0));
         }
 
+        // Po każdej zmianie pozycji w ZAPISANYM już dokumencie: przelicz sumę, zapisz
+        // i odśwież listę. Wcześniej pozycja zapisywała się od razu, a suma dopiero po
+        // „Zapisz” – lista i statystyki pokazywały starą kwotę.
+        function commitEditedDocumentPositions() {
+            if (currentEditingDocument === null) return;
+            const doc = documents[currentEditingDocument];
+            if (!doc) return;
+            doc.total = calcPositionsTotal(doc.positions);
+            doc.modified = Date.now();
+            saveData();
+            displayDocuments();
+        }
+
+        // Edycja pozycji w wierszu: zmiany trafiają do dokumentu dopiero po „Zapisz”
+        // w wierszu, więc „Anuluj” naprawdę anuluje.
         function savePositionChanges(index) {
-            // Pozycja jest już zaktualizowana przez updatePosition
-            if (currentEditingDocument !== null) {
-                saveData();
+            const positions = getActivePositions();
+            const row = document.getElementById('documentPositions').rows[index];
+            if (!positions[index] || !row) return;
+            const read = function(field){
+                const el = row.querySelector('[data-pos-field="' + field + '"]');
+                return el ? el.value : null;
+            };
+            const name = normalizeItemName(read('name'));
+            if (!name) {
+                alert('Nazwa pozycji jest wymagana');
+                return;
             }
-            // Odśwież wyświetlanie (wspólny renderer)
+            positions[index].name = name;
+            positions[index].notes = String(read('notes') || '').trim();
+            positions[index].quantity = parseFloat(String(read('quantity')).replace(',', '.')) || 0;
+            positions[index].price = round2(parseFloat(String(read('price')).replace(',', '.')) || 0);
+            const priority = read('priority');
+            if (priority !== null) positions[index].priority = priority;
             renderPositionsTable();
+            updateDocumentTotal();
+            commitEditedDocumentPositions();
         }
 
         function editPositionInline(index) {
             const row = document.getElementById('documentPositions').rows[index];
             const positions = getActivePositions();
             const position = positions[index];
-            const cs = getCurrencySuffix ? getCurrencySuffix() : ' zł';
-            row.innerHTML = '\n                <td>\n                    <input type="text" value="'+(String(position.name||'').replace(/"/g,'&quot;'))+'" onchange="updatePosition('+index+', \'name\', this.value)" autocomplete="off" autocapitalize="off" spellcheck="false">\n                    <input type="text" value="'+(String(position.notes||'').replace(/"/g,'&quot;'))+'" placeholder="Uwagi (opcjonalne)" onchange="updatePosition('+index+', \'notes\', this.value)" style="margin-top:6px;" autocomplete="off" autocapitalize="off" spellcheck="false">\n                </td>\n                <td><input type="number" value="'+(Number(position.quantity)||0)+'" onchange="updatePosition('+index+', \'quantity\', this.value)"></td>\n                <td><input type="number" value="'+(Number(position.price)||0)+'" step="0.01" onchange="updatePosition('+index+', \'price\', this.value)"></td>\n                <td>'+ ((Number(position.quantity)||0) * (Number(position.price)||0)).toFixed(2) + cs +'</td>\n                <td>'+buildPrioritySelectHTML(position.priority||'')+'</td>\n                <td>\n                    <button class="btn btn-primary" onclick="savePositionChanges('+index+')">Zapisz</button>\n                    <button class="btn btn-danger" onclick="cancelPositionEdit('+index+')">Anuluj</button>\n                </td>\n            ';
+            if (!row || !position) return;
+            const cs = getCurrencySuffix();
+            const onEnter = ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();savePositionChanges('+index+');}"';
+            row.innerHTML = '\n                <td>\n                    <input type="text" data-pos-field="name" value="'+escapeHtml(position.name||'')+'"'+onEnter+' autocomplete="off" autocapitalize="off" spellcheck="false">\n                    <input type="text" data-pos-field="notes" value="'+escapeHtml(position.notes||'')+'" placeholder="Uwagi (opcjonalne)"'+onEnter+' style="margin-top:6px;" autocomplete="off" autocapitalize="off" spellcheck="false">\n                </td>\n                <td><input type="number" data-pos-field="quantity" step="any" value="'+(Number(position.quantity)||0)+'"'+onEnter+'></td>\n                <td><input type="number" data-pos-field="price" step="0.01" value="'+(Number(position.price)||0)+'"'+onEnter+'></td>\n                <td>'+ ((Number(position.quantity)||0) * (Number(position.price)||0)).toFixed(2) + cs +'</td>\n                <td>'+buildPrioritySelectHTML(position.priority||'')+'</td>\n                <td>\n                    <button class="btn btn-primary" onclick="savePositionChanges('+index+')">Zapisz</button>\n                    <button class="btn btn-danger" onclick="cancelPositionEdit('+index+')">Anuluj</button>\n                </td>\n            ';
+            const first = row.querySelector('[data-pos-field="name"]');
+            if (first) first.focus();
         }
 
         function cancelPositionEdit(index) {
-            // Przywróć widok wiersza bez zapisywania zmian (wspólny renderer)
+            // Nic nie zostało jeszcze wpisane do dokumentu – wystarczy przerysować tabelę
             renderPositionsTable();
         }
 
         function addPosition() {
-            const name = document.getElementById('positionName').value.trim();
+            const name = normalizeItemName(document.getElementById('positionName').value);
             const quantity = parseFloat(document.getElementById('positionQuantity').value) || 1;
-            const price = parseFloat(document.getElementById('positionPrice').value) || 0;
+            const price = round2(parseFloat(document.getElementById('positionPrice').value) || 0);
             const notes = document.getElementById('positionNotes').value.trim();
             const prioritySel = document.getElementById('positionPriority');
             const priority = prioritySel ? prioritySel.value : '';
-            
+
             if (!name) {
                 alert('Nazwa pozycji jest wymagana');
                 return;
             }
-            
-            const position = { name: name, quantity: quantity, price: price, notes: notes, priority: priority };
-            
-            if (currentEditingDocument !== null) {
-                // Edytujemy istniejący dokument
-                documents[currentEditingDocument].positions.push(position);
-            } else {
-                // Tworzymy nowy dokument - pozycje będą dodane przy zapisie
-                if (!window.tempPositions) {
-                    window.tempPositions = [];
-                }
-                window.tempPositions.push(position);
-            }
-            
+
+            // Zapisany dokument: prosto do niego; nowy: do pozycji tymczasowych (trafią przy zapisie)
+            getActivePositions().push({ name: name, quantity: quantity, price: price, notes: notes, priority: priority });
+
             // Przerysuj tabelę pozycji (wspólny renderer utrzymuje spójność indeksów)
             renderPositionsTable();
-            
+
             // Wyczyść formularz
             document.getElementById('positionName').value = '';
             document.getElementById('positionQuantity').value = '1';
             document.getElementById('positionPrice').value = '';
             document.getElementById('positionSum').value = '';
             document.getElementById('positionNotes').value = '';
-            const prioSel = document.getElementById('positionPriority'); if (prioSel) prioSel.value = '';
-            
+            if (prioritySel) prioritySel.value = '';
+
             updateDocumentTotal();
-            
-            if (currentEditingDocument !== null) {
-                saveData();
-            }
+            commitEditedDocumentPositions();
         }
 
         function removePosition(index) {
             if (confirm('Czy na pewno chcesz usunąć tę pozycję?')) {
-                if (currentEditingDocument !== null) {
-                    documents[currentEditingDocument].positions.splice(index, 1);
-                    saveData();
-                } else {
-                    if (window.tempPositions) {
-                        window.tempPositions.splice(index, 1);
-                    }
-                }
-                
+                getActivePositions().splice(index, 1);
+
                 // Przerysuj całą tabelę – proste przenumerowanie przycisków psuło
                 // indeksy wierszy będących akurat w trybie edycji
                 renderPositionsTable();
-                
+
                 updateDocumentTotal();
+                commitEditedDocumentPositions();
             }
         }
 
         function updateDocumentTotal() {
-            var total = 0;
-            
-            if (currentEditingDocument !== null) {
-                // Edytujemy istniejący dokument
-                const doc = documents[currentEditingDocument];
-                total = (doc.positions||[]).reduce(function(sum, pos){ return sum + ((Number(pos.quantity)||0) * (Number(pos.price)||0)); }, 0);
-            } else {
-                // Nowy dokument - używamy tymczasowych pozycji
-                if (window.tempPositions) {
-                    total = window.tempPositions.reduce(function(sum, pos){ return sum + ((Number(pos.quantity)||0) * (Number(pos.price)||0)); }, 0);
-                }
-            }
-            
+            const total = calcPositionsTotal(getActivePositions());
             document.getElementById('documentTotal').textContent = total.toFixed(2) + getCurrencySuffix();
         }
 
-        function calculateDocumentTotal() {
-            updateDocumentTotal();
+        function readDocumentForm() {
+            const val = function(id){ const el = document.getElementById(id); return el ? String(el.value).trim() : ''; };
+            let date = val('documentDate');
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) date = '';
+            return {
+                type: document.getElementById('documentType').value,
+                number: val('documentNumber'),
+                date: date,
+                issuer: val('documentIssuer'),
+                address: val('documentAddress'),
+                nip: val('documentNIP'),
+                client: getGuardedDocumentClient(),
+                clientNip: val('documentClientNIP'),
+                clientAddress: val('documentClientAddress'),
+                vehicle: getGuardedDocumentVehicle(),
+                notes: val('documentNotes'),
+                paymentMethod: val('paymentMethod'),
+                paidAmount: parseFloat(val('paidAmount')) || 0
+            };
         }
 
-        function saveDocument() {
-            const type = document.getElementById('documentType').value;
-            const number = document.getElementById('documentNumber').value.trim();
-            const issuer = document.getElementById('documentIssuer').value.trim();
-            const address = document.getElementById('documentAddress').value.trim();
-            const nip = document.getElementById('documentNIP').value.trim();
-            const client = getGuardedDocumentClient();
-            const vehicle = getGuardedDocumentVehicle();
-            const notes = document.getElementById('documentNotes').value.trim();
-            const paymentMethodEl = document.getElementById('paymentMethod');
-            const paymentMethod = paymentMethodEl ? paymentMethodEl.value.trim() : '';
-            const paidAmountEl = document.getElementById('paidAmount');
-            const paidAmount = paidAmountEl ? (parseFloat(paidAmountEl.value) || 0) : 0;
-            
-            if (!number) {
+        // keepOpen = true: zapisz i zostaw okno otwarte w trybie edycji (używa tego „Drukuj”).
+        // Zwraca true, gdy dokument został zapisany.
+        function saveDocument(keepOpen) {
+            const form = readDocumentForm();
+
+            if (!form.number) {
                 alert('Numer dokumentu jest wymagany');
-                return;
+                return false;
             }
-            if (isDocNumberTaken(type, number, currentEditingDocument)){
-                alert('Istnieje już dokument typu '+type.toUpperCase()+' o numerze '+number+'. Zmień numer.');
-                return;
+            if (isDocNumberTaken(form.type, form.number, currentEditingDocument)){
+                alert('Istnieje już dokument typu '+form.type.toUpperCase()+' o numerze '+form.number+'. Zmień numer.');
+                return false;
             }
-            
-            var positions = [];
-            if (currentEditingDocument !== null) {
-                positions = documents[currentEditingDocument].positions;
-            } else {
-                positions = window.tempPositions || [];
-            }
-            
-            const total = positions.reduce(function(sum, pos){ return sum + ((Number(pos.quantity)||0) * (Number(pos.price)||0)); }, 0);
-            
+
+            const previous = (currentEditingDocument !== null && documents[currentEditingDocument]) ? documents[currentEditingDocument] : null;
+            const positions = getActivePositions();
+            const total = calcPositionsTotal(positions);
+
             // Opcjonalne ostrzeżenie gdy wpłacono > wartość dokumentu
-            if (type !== 'kosztorys' && paidAmount > total) {
+            if (form.type !== 'kosztorys' && form.paidAmount > total) {
                 if (!confirm('Wpłacono więcej niż wynosi wartość dokumentu. Kontynuować?')) {
-                    return;
+                    return false;
                 }
             }
-            
-            // Zachowaj oryginalną datę przy edycji; dla nowych dokumentów ustaw dzisiejszą
-            const originalDate = (currentEditingDocument !== null && documents[currentEditingDocument])
-                ? documents[currentEditingDocument].date
-                : new Date().toISOString().split('T')[0];
 
-            const documentObj = {
-                type: type,
-                number: number,
-                date: originalDate,
-                issuer: issuer,
-                address: address,
-                nip: nip,
-                client: client,
-                vehicle: vehicle,
-                notes: notes,
+            // Data z formularza; gdy pusta – przy edycji zostaje dotychczasowa, w nowym dzisiejsza
+            const documentObj = Object.assign({}, previous || {}, form, {
+                date: form.date || (previous && previous.date) || todayLocalISO(),
                 positions: positions,
                 total: total,
-                paymentMethod: paymentMethod,
-                paidAmount: paidAmount
-            };
+                modified: Date.now()
+            });
+            if (previous) {
+                // Zmiana numeru/typu = inny klucz; stary nie może wrócić przy scalaniu z chmurą
+                const oldKey = fbItemKey('documents', previous);
+                if (oldKey !== fbItemKey('documents', documentObj)) markDeletedKey('documents', oldKey);
+            }
             // Automatyczne dopisywanie klienta i pozycji do słowników
             ensureFromDocument(documentObj);
             // zapamiętaj wystawiającego do podpowiedzi
-            saveIssuer(issuer);
-            
-            if (currentEditingDocument !== null) {
+            saveIssuer(form.issuer);
+
+            if (previous) {
                 documents[currentEditingDocument] = documentObj;
             } else {
                 documents.push(documentObj);
                 window.tempPositions = [];
+                if (keepOpen) {
+                    // Dokument już istnieje – dalsze zmiany w tym oknie to jego edycja
+                    currentEditingDocument = documents.length - 1;
+                    document.getElementById('documentModalTitle').textContent = 'Edytuj dokument: ' + String(documentObj.type).toUpperCase();
+                    setCopyButtonVisible(true);
+                }
             }
-            
+
             saveData();
             // Odśwież widoki, by nowe rekordy były widoczne od razu
-            try { displayClients(); } catch(e){}
-            try { displayProducts(); } catch(e){}
-            try { displayServices(); } catch(e){}
+            try { displayClients(); } catch(e){ console.error(e); }
+            try { displayProducts(); } catch(e){ console.error(e); }
             displayDocuments();
-            closeModal('documentModal');
-            resetDocumentTransientState();
+            if (!keepOpen) {
+                closeModal('documentModal');
+                resetDocumentTransientState();
+            }
+            return true;
         }
 
         function deleteDocument(index) {
             if (confirm('Czy na pewno chcesz usunąć ten dokument?')) {
+                markDeleted('documents', documents[index]);
                 documents.splice(index, 1);
                 saveData();
                 displayDocuments();
@@ -3201,6 +3599,7 @@ Przykład:
             try {
                 return String(str)
                     .toLowerCase()
+                    .replace(/ł/g, 'l')
                     .normalize('NFD')
                     .replace(/[\u0300-\u036f]/g, '')
                     .replace(/\u00A0/g, ' ')
@@ -3254,72 +3653,21 @@ Przykład:
         function printDocument(index) {
             var doc;
             if (index !== null && index !== undefined) {
+                // Druk z listy – zapisany dokument
                 doc = documents[index];
-                // Uzupełnij brakujące pola płatności jeśli starszy dokument
-                if (doc && doc.type !== 'kosztorys') {
-                    if (doc.paymentMethod === undefined) doc.paymentMethod = '';
-                    if (doc.paidAmount === undefined) doc.paidAmount = 0;
-                }
-            } else if (currentEditingDocument !== null) {
-                doc = documents[currentEditingDocument];
             } else {
-                // Nowy dokument - utwórz tymczasowy
-                const type = document.getElementById('documentType').value;
-                const number = document.getElementById('documentNumber').value.trim();
-                const issuer = document.getElementById('documentIssuer').value.trim();
-                const address = document.getElementById('documentAddress').value.trim();
-                const nip = document.getElementById('documentNIP').value.trim();
-                const client = getGuardedDocumentClient();
-                const vehicle = getGuardedDocumentVehicle();
-                const notes = document.getElementById('documentNotes').value.trim();
-                const positions = window.tempPositions || [];
-                const total = positions.reduce(function(sum, pos){ return sum + ((Number(pos.quantity)||0) * (Number(pos.price)||0)); }, 0);
-                const paymentMethodEl = document.getElementById('paymentMethod'); const paymentMethod = paymentMethodEl ? paymentMethodEl.value.trim() : '';
-                const paidAmountEl = document.getElementById('paidAmount'); const paidAmount = paidAmountEl ? (parseFloat(paidAmountEl.value) || 0) : 0;
-                
-                doc = {
-                    type: type, number: number, issuer: issuer, address: address, nip: nip, client: client, vehicle: vehicle, notes: notes, positions: positions, total: total,
-                    paymentMethod: paymentMethod, paidAmount: paidAmount,
-                    date: new Date().toISOString().split('T')[0]
-                };
-                // Auto-zapis nowego dokumentu przy druku, jeśli nie został jeszcze zapisany
-                try {
-                    if (number) {
-                        const exists = (documents || []).some(function(d){ return d && d.number === number && d.type === type; });
-                        if (!exists) {
-                            // Głęboka kopia pozycji – płytka kopia współdzieliła tablicę
-                            // z formularzem i dalsza edycja psuła zapisany dokument
-                            documents.push(Object.assign({}, doc, { positions: JSON.parse(JSON.stringify(positions)) }));
-                            saveIssuer(issuer);
-                            // dopisz klienta i pozycje do słowników
-                            ensureFromDocument(doc);
-                            saveData();
-                            try { displayClients(); } catch(e){}
-                            try { displayProducts(); } catch(e){}
-                            try { displayServices(); } catch(e){}
-                            displayDocuments();
-                        }
-                    }
-                } catch (e) { /* ignoruj */ }
+                // Druk z otwartego okna: najpierw zapisz to, co jest w formularzu, i zostań
+                // w trybie edycji. Wcześniej druk po cichu dopisywał nowy dokument, a późniejsze
+                // „Zapisz” kończyło się komunikatem „Istnieje już dokument o numerze…”.
+                if (!saveDocument(true)) return;
+                doc = documents[currentEditingDocument];
             }
-            
+
             if (!doc) return;
-            
-            // Nadpisz wartości płatności z bieżącego formularza (druk bez konieczności zapisu zmian).
-            // Tylko gdy modal dokumentu jest otwarty i dotyczy TEGO dokumentu – inaczej druk
-            // z listy przejmowałby wartości z ostatnio otwieranego formularza.
-            try {
-                const docModalEl = document.getElementById('documentModal');
-                const docModalOpen = docModalEl && docModalEl.style.display === 'block';
-                const printsCurrentDoc = (index === null || index === undefined) ||
-                    (currentEditingDocument !== null && index === currentEditingDocument);
-                if (docModalOpen && printsCurrentDoc) {
-                    const pmEl2 = document.getElementById('paymentMethod');
-                    if (pmEl2 && pmEl2.value !== '') doc.paymentMethod = pmEl2.value.trim();
-                    const paEl2 = document.getElementById('paidAmount');
-                    if (paEl2 && paEl2.value !== '') doc.paidAmount = (parseFloat(paEl2.value) || 0);
-                }
-            } catch(e) { /* ignoruj */ }
+
+            var buyerHtml = '';
+            if (doc.clientNip) buyerHtml += '<p>NIP: ' + escapeHtml(doc.clientNip) + '</p>';
+            if (doc.clientAddress) buyerHtml += '<p>' + escapeHtml(doc.clientAddress) + '</p>';
             
             const printArea = document.getElementById('printArea');
             const footer = document.getElementById('documentFooter').value;
@@ -3431,7 +3779,7 @@ Przykład:
                 const due = Math.max(0, Math.round((grossTotal - paid) * 100) / 100);
                 paymentsHtml = '<div class="document-footer" style="font-size:12px;color:#000;margin-top:8px;border-top:1px solid #999;padding-top:4px;"><p style="margin:1px 0"><strong>Zapłata:</strong> '+escapeHtml(doc.paymentMethod || '-')+' &nbsp;|&nbsp; <strong>Suma:</strong> '+grossTotal.toFixed(2)+cs+' &nbsp;|&nbsp; <strong>Wpłacono:</strong> '+paid.toFixed(2)+cs+' &nbsp;|&nbsp; <strong>Do zapłaty:</strong> '+due.toFixed(2)+cs+'</p></div>';
             }
-            printArea.innerHTML = '\n                <div class="document-header">\n                    <div class="company-info">\n                        <h2>Wystawiający: '+escapeHtml(doc.issuer)+'</h2>\n                        '+(doc.address ? '<p>'+escapeHtml(doc.address)+'</p>' : '')+'\n                        '+(doc.nip ? '<p>NIP: '+escapeHtml(doc.nip)+'</p>' : '')+'\n                        '+(phoneVal ? '<p>Tel: '+escapeHtml(phoneVal)+'</p>' : '')+'\n                        '+(emailVal ? '<p>Email: '+escapeHtml(emailVal)+'</p>' : '')+'\n                    </div>\n                    '+logoHtml+'\n                </div>\n                \n                <div class="document-title">'+doc.type.toUpperCase()+' '+escapeHtml(doc.number)+'<span style="float:right;font-size:14px;font-weight:normal">Data: '+escapeHtml(doc.date)+'</span></div>\n                \n                <div class="document-details">\n                    <div class="client-info">\n                        <h3>Klient</h3>\n                        <p><strong>Klient:</strong> '+escapeHtml(doc.client)+'</p>\n                        '+vehicleDetailsHtml+'\n                    </div>\n                    <div class="vehicle-info">\n                        '+(doc.notes ? '<h3>Uwagi</h3><p style="font-size:10px;margin:2px 0">'+escapeHtml(doc.notes).replace(/\n/g,'<br>')+'</p>' : '')+'\n                    </div>\n                </div>\n                \n                <table class="positions-table">\n                    <thead>\n                        <tr>\n                            <th>Pozycja</th>\n                            <th>Ilość</th>\n                            <th>Cena</th>\n                            <th>Suma</th>\n                            <th>Priorytet</th>\n                        </tr>\n                    </thead>\n                    <tbody>\n                        '+positionsRows+'\n                    </tbody>\n                    <tfoot>\n                        '+summaryHtml+'\n                    </tfoot>\n                </table>\n                \n                '+paymentsHtml+'\n                '+(footer ? '<div class="document-footer">'+escapeHtml(footer)+'</div>' : '')+'\n            ';
+            printArea.innerHTML = '\n                <div class="document-header">\n                    <div class="company-info">\n                        <h2>Wystawiający: '+escapeHtml(doc.issuer)+'</h2>\n                        '+(doc.address ? '<p>'+escapeHtml(doc.address)+'</p>' : '')+'\n                        '+(doc.nip ? '<p>NIP: '+escapeHtml(doc.nip)+'</p>' : '')+'\n                        '+(phoneVal ? '<p>Tel: '+escapeHtml(phoneVal)+'</p>' : '')+'\n                        '+(emailVal ? '<p>Email: '+escapeHtml(emailVal)+'</p>' : '')+'\n                    </div>\n                    '+logoHtml+'\n                </div>\n                \n                <div class="document-title">'+doc.type.toUpperCase()+' '+escapeHtml(doc.number)+'<span style="float:right;font-size:14px;font-weight:normal">Data: '+escapeHtml(doc.date)+'</span></div>\n                \n                <div class="document-details">\n                    <div class="client-info">\n                        <h3>Klient</h3>\n                        <p><strong>Klient:</strong> '+escapeHtml(doc.client||'')+'</p>'+buyerHtml+'\n                        '+vehicleDetailsHtml+'\n                    </div>\n                    <div class="vehicle-info">\n                        '+(doc.notes ? '<h3>Uwagi</h3><p style="font-size:10px;margin:2px 0">'+escapeHtml(doc.notes).replace(/\n/g,'<br>')+'</p>' : '')+'\n                    </div>\n                </div>\n                \n                <table class="positions-table">\n                    <thead>\n                        <tr>\n                            <th>Pozycja</th>\n                            <th>Ilość</th>\n                            <th>Cena</th>\n                            <th>Suma</th>\n                            <th>Priorytet</th>\n                        </tr>\n                    </thead>\n                    <tbody>\n                        '+positionsRows+'\n                    </tbody>\n                    <tfoot>\n                        '+summaryHtml+'\n                    </tfoot>\n                </table>\n                \n                '+paymentsHtml+'\n                '+(footer ? '<div class="document-footer">'+escapeHtml(footer)+'</div>' : '')+'\n            ';
             
             
 
@@ -3497,13 +3845,20 @@ Przykład:
 
         function displayDocuments() {
             const tbody = document.getElementById('documentsTableBody');
-            tbody.innerHTML = '';
-            
-            documents.forEach(function(doc, index){
-                const row = tbody.insertRow();
-                row.setAttribute('data-doc-index', index);
-                row.innerHTML = '\n                    <td>'+escapeHtml(doc.type)+'</td>\n                    <td>'+escapeHtml(doc.number)+'</td>\n                    <td>'+escapeHtml(doc.date)+'</td>\n                    <td>'+escapeHtml(doc.client)+'</td>\n                    <td>'+(Number(doc.total)||0).toFixed(2)+' zł</td>\n                    <td>\n                        <button class="btn btn-primary" onclick="editDocument('+index+')">Edytuj</button>\n                        <button class="btn" onclick="printDocument('+index+')">Drukuj</button>\n                        <button class="btn btn-danger" onclick="deleteDocument('+index+')">Usuń</button>\n                    </td>\n                ';
+
+            // Najnowsze na górze (po dacie, w ramach dnia – ostatnio dodane pierwsze).
+            // data-doc-index i przyciski nadal wskazują pozycję w tablicy documents.
+            const order = [];
+            documents.forEach(function(doc, index){ if (doc) order.push(index); });
+            order.sort(function(a, b){
+                const da = String(documents[a].date || ''), db = String(documents[b].date || '');
+                if (da !== db) return da < db ? 1 : -1;
+                return b - a;
             });
+            tbody.innerHTML = order.map(function(index){
+                const doc = documents[index];
+                return '<tr data-doc-index="'+index+'">\n                    <td>'+escapeHtml(doc.type||'')+'</td>\n                    <td>'+escapeHtml(doc.number||'')+'</td>\n                    <td>'+escapeHtml(doc.date||'')+'</td>\n                    <td>'+escapeHtml(doc.client||'')+'</td>\n                    <td>'+(Number(doc.total)||0).toFixed(2)+' zł</td>\n                    <td>\n                        <button class="btn btn-primary" onclick="editDocument('+index+')">Edytuj</button>\n                        <button class="btn btn-copy" onclick="copyDocument('+index+')" title="Nowy dokument na podstawie tego – oryginał zostaje bez zmian">Kopiuj</button>\n                        <button class="btn" onclick="printDocument('+index+')">Drukuj</button>\n                        <button class="btn btn-danger" onclick="deleteDocument('+index+')">Usuń</button>\n                    </td>\n                </tr>';
+            }).join('');
 
             updateDocumentYearFilter();
         }
@@ -3809,7 +4164,7 @@ Przykład:
             }
             
             // Sprawdź czy produkt już istnieje
-            const existingIndex = products.findIndex(function(p){ return p.name.toLowerCase() === name.toLowerCase(); });
+            const existingIndex = findDictionaryIndex(name, false);
             
             if (existingIndex >= 0) {
                 // Aktualizuj istniejący
@@ -3829,6 +4184,7 @@ Przykład:
 
         function deleteProduct(index) {
             if (confirm('Czy na pewno chcesz usunąć ten produkt?')) {
+                markDeleted('products', products[index]);
                 products.splice(index, 1);
                 saveData();
                 displayProducts();
@@ -3837,12 +4193,23 @@ Przykład:
 
         function displayProducts() {
             const tbody = document.getElementById('productsTableBody');
-            tbody.innerHTML = '';
-            
+            const usage = getItemUsageMap();
+
+            // Najczęściej używane na górze; indeks w przycisku „Usuń” to nadal pozycja w tablicy products
+            const rows = [];
             products.forEach(function(product, index){
-                const row = tbody.insertRow();
-                row.innerHTML = '\n                    <td>'+escapeHtml(product.name)+'</td>\n                    <td>'+(Number(product.price)||0).toFixed(2)+' zł</td>\n                    <td>\n                        <button class="btn btn-danger" onclick="deleteProduct('+index+')">Usuń</button>\n                    </td>\n                ';
+                if (!product || !product.name) return;
+                const u = usage.get(itemKey(product.name));
+                rows.push({ index: index, product: product, count: u ? u.count : 0, last: u ? u.last : '' });
             });
+            rows.sort(function(a, b){
+                if (a.count !== b.count) return b.count - a.count;
+                return String(a.product.name).localeCompare(String(b.product.name), 'pl');
+            });
+            tbody.innerHTML = rows.map(function(r){
+                return '<tr>\n                    <td>'+escapeHtml(r.product.name)+'</td>\n                    <td>'+(Number(r.product.price)||0).toFixed(2)+' zł</td>\n                    <td title="'+(r.last ? 'Ostatnio: '+escapeHtml(r.last) : 'Jeszcze nieużyte w dokumentach')+'">'+(r.count ? r.count+'×' : '–')+'</td>\n                    <td>\n                        <button class="btn btn-danger" onclick="deleteProduct('+r.index+')">Usuń</button>\n                    </td>\n                </tr>';
+            }).join('');
+            try { filterProducts(); } catch(e) {}
         }
 
         function filterProducts() {
@@ -3949,49 +4316,6 @@ Przykład:
             if ('day' in sel) localStorage.setItem('statsDay', sel.day||'');
             if ('tab' in sel) localStorage.setItem('statsTab', sel.tab||'year');
         }
-        function rebuildTimeFilters(){
-            const yearSel = document.getElementById('statsYearSelect');
-            const monthSel = document.getElementById('statsMonthSelect');
-            const daySel = document.getElementById('statsDaySelect');
-            if (!yearSel || !monthSel || !daySel) return;
-
-            const sel = getStatsSelection();
-
-            const years = getYearsList();
-            yearSel.innerHTML = '';
-            years.forEach(function(y){
-                const opt = document.createElement('option');
-                opt.value = String(y);
-                opt.textContent = y;
-                if (String(y) === String(sel.year)) opt.selected = true;
-                yearSel.appendChild(opt);
-            });
-            if (!sel.year && years.length){ sel.year = String(years[0]); }
-
-            const months = getMonthsList(sel.year);
-            monthSel.innerHTML = '';
-            months.forEach(function(m){
-                const opt = document.createElement('option');
-                opt.value = m;
-                opt.textContent = String(m) + ' - ' + monthNamePL(m);
-                if (m === sel.month) opt.selected = true;
-                monthSel.appendChild(opt);
-            });
-            if (!sel.month && months.length) sel.month = months[months.length-1];
-
-            const days = getDaysList(sel.year, sel.month);
-            daySel.innerHTML = '';
-            days.forEach(function(d){
-                const opt = document.createElement('option');
-                opt.value = d;
-                opt.textContent = d;
-                if (d === sel.day) opt.selected = true;
-                daySel.appendChild(opt);
-            });
-            if (!sel.day && days.length) sel.day = days[days.length-1];
-
-            saveStatsSelection(sel);
-        }
         function onTimeFilterChange(){
             const yearSel = document.getElementById('statsYearSelect');
             const monthSel = document.getElementById('statsMonthSelect');
@@ -4022,21 +4346,6 @@ Przykład:
                 if (el){ el.classList.toggle('active', el.getAttribute('data-tab')===current); }
             });
         }
-        function getDocsForContext(){
-            const sel = getStatsSelection();
-            const all = documents || [];
-            if (sel.tab === 'day' && sel.day){
-                return all.filter(function(d){ return d && d.date === sel.day; });
-            }
-            if (sel.tab === 'month' && sel.year && sel.month){
-                const ym = sel.year + '-' + sel.month;
-                return all.filter(function(d){ return d && typeof d.date === 'string' && d.date.indexOf(ym) === 0; });
-            }
-            if (sel.year){
-                return all.filter(function(d){ return d && d.date && (new Date(d.date).getFullYear()===Number(sel.year)); });
-            }
-            return all.slice();
-        }
         function renderStatistics(){
             const sel = getStatsSelection();
             const subset = getDocsForContextV11(sel);
@@ -4046,36 +4355,6 @@ Przykład:
             renderPopularItems(subset);
             renderDocumentStats(subset, ctx);
             renderTopClients(subset);
-        }
-        function setStatsHeadings(ctx, sel){
-            const rev = document.getElementById('statsRevenueHeading');
-            const pop = document.getElementById('statsPopularHeading');
-            const doc = document.getElementById('statsDocHeading');
-            const top = document.getElementById('statsTopClientsHeading');
-            if (rev){
-                if (ctx === 'month') rev.textContent = 'Przychody dzienne ('+sel.year+' '+monthNamePL(sel.month)+')';
-                else if (ctx === 'day') rev.textContent = 'Dokumenty dnia ('+sel.day+')';
-                else if (ctx === 'annual') rev.textContent = 'Przychody miesięczne ('+sel.year+')';
-                else rev.textContent = 'Przychody miesięczne ('+sel.year+')';
-            }
-            if (pop){
-                if (ctx==='day') pop.textContent = 'Najpopularniejsze pozycje (dzień)';
-                else if (ctx==='month') pop.textContent = 'Najpopularniejsze pozycje (miesiąc)';
-                else if (ctx==='annual') pop.textContent = 'Najpopularniejsze pozycje (rok)';
-                else pop.textContent = 'Najpopularniejsze części/usługi';
-            }
-            if (doc){
-                if (ctx==='day') doc.textContent = 'Statystyki dokumentów (dzień)';
-                else if (ctx==='month') doc.textContent = 'Statystyki dokumentów (miesiąc)';
-                else if (ctx==='annual') doc.textContent = 'Podsumowanie roczne ('+sel.year+')';
-                else doc.textContent = 'Statystyki dokumentów';
-            }
-            if (top){
-                if (ctx==='day') top.textContent = 'Top klienci (dzień)';
-                else if (ctx==='month') top.textContent = 'Top klienci (miesiąc)';
-                else if (ctx==='annual') top.textContent = 'Top klienci (rok)';
-                else top.textContent = 'Top klienci';
-            }
         }
         function renderRevenue(docs, ctx, sel){
             const container = document.getElementById('monthlyRevenue');
@@ -4173,153 +4452,10 @@ Przykład:
             });
         }
 
-        function displayMonthlyRevenue() { /* kompatybilność – nieużywane w nowym UI */
-            const monthlyData = {};
-            
-            documents.forEach(function(doc){
-                const month = doc.date.substring(0, 7); // YYYY-MM
-                if (!monthlyData[month]) {
-                    monthlyData[month] = 0;
-                }
-                monthlyData[month] += doc.total;
-            });
-            
-            const container = document.getElementById('monthlyRevenue');
-            container.innerHTML = '';
-            
-            Object.keys(monthlyData).sort().reverse().slice(0, 12).forEach(function(month){
-                const div = document.createElement('div');
-                div.className = 'stats-item';
-                div.innerHTML = '\n                    <span>'+month+'</span>\n                    <span class="stats-value">'+monthlyData[month].toFixed(2)+' zł</span>\n                ';
-                container.appendChild(div);
-            });
-        }
-
-        function displayPopularItems() { /* kompatybilność – nieużywane w nowym UI */
-            const itemCounts = {};
-            
-            documents.forEach(function(doc){
-                doc.positions.forEach(function(pos){
-                    if (!itemCounts[pos.name]) {
-                        itemCounts[pos.name] = 0;
-                    }
-                    itemCounts[pos.name] += pos.quantity;
-                });
-            });
-            
-            const sortedItems = Object.entries(itemCounts)
-                .sort(function(a, b){ return b[1] - a[1]; })
-                .slice(0, 10);
-            
-            const container = document.getElementById('popularItems');
-            container.innerHTML = '';
-            
-            sortedItems.forEach(function(entry){
-                const item = entry[0];
-                const count = entry[1];
-                const div = document.createElement('div');
-                div.className = 'stats-item';
-                div.innerHTML = '\n                    <span>'+escapeHtml(item)+'</span>\n                    <span class="stats-value">'+count+' szt</span>\n                ';
-                container.appendChild(div);
-            });
-        }
-
-        function displayDocumentStats() { /* kompatybilność – nieużywane w nowym UI */
-            const stats = {
-                total: documents.length,
-                thisMonth: 0,
-                avgValue: 0
-            };
-            
-            const thisMonth = new Date().toISOString().substring(0, 7);
-            var totalValue = 0;
-            
-            documents.forEach(function(doc){
-                totalValue += doc.total;
-                if (doc.date.substring(0, 7) === thisMonth) {
-                    stats.thisMonth++;
-                }
-            });
-            
-            stats.avgValue = documents.length > 0 ? totalValue / documents.length : 0;
-            
-            const container = document.getElementById('documentStats');
-            container.innerHTML = '\n                <div class="stats-item">\n                    <span>Łącznie dokumentów</span>\n                    <span class="stats-value">'+stats.total+'</span>\n                </div>\n                <div class="stats-item">\n                    <span>W tym miesiącu</span>\n                    <span class="stats-value">'+stats.thisMonth+'</span>\n                </div>\n                <div class="stats-item">\n                    <span>Średnia wartość</span>\n                    <span class="stats-value">'+stats.avgValue.toFixed(2)+' zł</span>\n                </div>\n            ';
-        }
-
-        function displayTopClients() { /* kompatybilność – nieużywane w nowym UI */
-            const clientTotals = {};
-            
-            documents.forEach(function(doc){
-                if (!clientTotals[doc.client]) {
-                    clientTotals[doc.client] = 0;
-                }
-                clientTotals[doc.client] += doc.total;
-            });
-            
-            const sortedClients = Object.entries(clientTotals)
-                .sort(function(a, b){ return b[1] - a[1]; })
-                .slice(0, 10);
-            
-            const container = document.getElementById('topClients');
-            container.innerHTML = '';
-            
-            sortedClients.forEach(function(entry){
-                const client = entry[0];
-                const total = entry[1];
-                const div = document.createElement('div');
-                div.className = 'stats-item';
-                div.innerHTML = '\n                    <span>'+escapeHtml(client)+'</span>\n                    <span class="stats-value">'+total.toFixed(2)+' zł</span>\n                ';
-                container.appendChild(div);
-            });
-        }
-
-        // Funkcje usług/słownika
-        function addService() {
-            const name = normalizeItemName(document.getElementById('serviceName').value);
-            const price = parseFloat(document.getElementById('servicePrice').value) || 0;
-            
-            if (!name) {
-                alert('Nazwa usługi jest wymagana');
-                return;
-            }
-            
-            // Sprawdź czy usługa już istnieje
-            const existingIndex = services.findIndex(function(s){ return s.name.toLowerCase() === name.toLowerCase(); });
-            
-            if (existingIndex >= 0) {
-                // Aktualizuj istniejącą
-                services[existingIndex].price = price;
-            } else {
-                // Dodaj nową
-                services.push({ name: name, price: price });
-            }
-            
-            // Wyczyść formularz
-            document.getElementById('serviceName').value = '';
-            document.getElementById('servicePrice').value = '';
-            
-            saveData();
-            displayServices();
-        }
-
-        function deleteService(index) {
-            if (confirm('Czy na pewno chcesz usunąć tę usługę?')) {
-                services.splice(index, 1);
-                saveData();
-                displayServices();
-            }
-        }
-
-        function displayServices() {
-            const tbody = document.getElementById('servicesTableBody');
-            tbody.innerHTML = '';
-            
-            services.forEach(function(service, index){
-                const row = tbody.insertRow();
-                row.innerHTML = '\n                    <td>'+escapeHtml(service.name)+'</td>\n                    <td>'+(Number(service.price)||0).toFixed(2)+' zł</td>\n                    <td>\n                        <button class="btn btn-danger" onclick="deleteService('+index+')">Usuń</button>\n                    </td>\n                ';
-            });
-        }
+        // Dawny osobny „Słownik usług/produktów” z Ustawień był kopią listy „Towary i usługi”
+        // (te same nazwy zapisywane dwa razy). Został z nią połączony – patrz unifyDictionaries().
+        // Funkcja zostaje pusta, bo jest wołana z kilku miejsc.
+        function displayServices() {}
 
         // Funkcje sugestii
 
@@ -4432,24 +4568,29 @@ Przykład:
         function suggestServices(value) {
             const container = document.getElementById('serviceSuggestions');
             container.innerHTML = '';
-            const normalizedQuery = normalizeSearchString(value);
-            if (!normalizedQuery) {
-                container.innerHTML = ''; // Ukryj podpowiedzi gdy pole puste
-                return;
-            }
+            if (!normalizeSearchString(value)) return;
 
-            // Zbierz propozycje z usług i produktów, usuń duplikaty (po nazwie)
+            // Jedna propozycja na jedną „tę samą” nazwę (bez względu na wielkość liter,
+            // polskie znaki, kropki i spacje), a kolejność wg tego, jak często i jak
+            // niedawno pozycja była używana w dokumentach.
+            const usage = getItemUsageMap();
             const seen = new Set();
             const list = [];
             function pushItem(it){
                 if (!it || !it.name) return;
-                const key = normalizeSearchString(it.name);
-                if (seen.has(key)) return;
+                const key = itemKey(it.name);
+                if (!key || seen.has(key)) return;
                 seen.add(key);
-                list.push({ name: it.name, price: Number(it.price) || 0 });
+                const u = usage.get(key);
+                list.push({
+                    name: it.name,
+                    price: Number(it.price) || (u ? u.lastPrice : 0) || 0,
+                    count: u ? u.count : 0,
+                    last: u ? u.last : ''
+                });
             }
-            (services || []).forEach(pushItem);
             (products || []).forEach(pushItem);
+            (services || []).forEach(pushItem);
 
             const results = list
                 .filter(function(item){
@@ -4460,16 +4601,12 @@ Przykład:
                 })
                 .sort(function(a, b){
                     if (a.rank !== b.rank) return a.rank - b.rank;
+                    if (a.item.count !== b.item.count) return b.item.count - a.item.count;
+                    if (a.item.last !== b.item.last) return a.item.last < b.item.last ? 1 : -1;
                     return a.item.name.localeCompare(b.item.name, 'pl');
                 })
                 .slice(0, 10);
-            const cs = (typeof getCurrencySuffix === 'function') ? getCurrencySuffix() : ' zł';
-
-            // Jeśli brak wyników, ukryj podpowiedzi
-            if (results.length === 0) {
-                container.innerHTML = '';
-                return;
-            }
+            const cs = getCurrencySuffix();
 
             results.forEach(function(result){
                 const item = result.item;
@@ -4478,6 +4615,13 @@ Przykład:
                 div.style.padding = '5px';
                 div.style.cursor = 'pointer';
                 div.style.borderBottom = '1px solid #eee';
+                if (item.count > 0) {
+                    const badge = document.createElement('span');
+                    badge.textContent = item.count + '×';
+                    badge.title = 'Ile razy użyto w dokumentach';
+                    badge.style.cssText = 'float:right;color:#999;font-size:11px;margin-left:8px;';
+                    div.appendChild(badge);
+                }
                 div.onclick = function() {
                     document.getElementById('positionName').value = item.name;
                     document.getElementById('positionPrice').value = item.price;
@@ -4578,7 +4722,7 @@ Przykład:
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     companyLogo = e.target.result;
-                    localStorage.setItem('companyLogo', companyLogo);
+                    saveCompanySettings(true);
                     
                     const preview = document.getElementById('logoPreview');
                     preview.innerHTML = '<img id="logoPrevImg" src="'+companyLogo+'">';
@@ -4600,61 +4744,80 @@ Przykład:
             img.style.border = '1px solid #ddd';
             img.style.background = '#fff';
         }
+        let _settingsLoadedToForm = false;
         function loadCompanySettings() {
-            const companyName = localStorage.getItem('companyName');
-            const companyAddress = localStorage.getItem('companyAddress');
-            const companyNIP = localStorage.getItem('companyNIP');
-            const companyPhone = localStorage.getItem('companyPhone');
-            const companyEmail = localStorage.getItem('companyEmail');
-            const documentFooter = localStorage.getItem('documentFooter');
-            const simpleMode = localStorage.getItem('simpleMode') === 'true';
+            // Pole wypełniamy, gdy wartość jest zapisana – także pustą (wcześniej nie dało się
+            // np. wyczyścić stopki, bo puste pole było pomijane)
+            const setVal = function(id, key){
+                const v = localStorage.getItem(key);
+                const el = document.getElementById(id);
+                if (el && v !== null) el.value = v;
+            };
+            setVal('companyName', 'companyName');
+            setVal('companyAddress', 'companyAddress');
+            setVal('companyNIP', 'companyNIP');
+            setVal('companyPhone', 'companyPhone');
+            setVal('companyEmail', 'companyEmail');
+            setVal('documentFooter', 'documentFooter');
             const logoFit = localStorage.getItem('logoFit') || 'contain';
-            const printCompact = localStorage.getItem('printCompact') === 'true';
-            const printNoLogo = localStorage.getItem('printNoLogo') === 'true';
             const autoFitPrint = (localStorage.getItem('autoFitPrint') === null) ? true : (localStorage.getItem('autoFitPrint') === 'true');
-            const updatePriceFromDocument = localStorage.getItem('updatePriceFromDocument') === 'true';
-            
-            if (companyName) document.getElementById('companyName').value = companyName;
-            if (companyAddress) document.getElementById('companyAddress').value = companyAddress;
-            if (companyNIP) document.getElementById('companyNIP').value = companyNIP;
-            if (companyPhone) document.getElementById('companyPhone').value = companyPhone;
-            if (companyEmail) document.getElementById('companyEmail').value = companyEmail;
-            if (documentFooter) document.getElementById('documentFooter').value = documentFooter;
-            document.getElementById('simpleMode').checked = simpleMode;
-            const fitCb = document.getElementById('logoFitCover');
-            if (fitCb) fitCb.checked = (logoFit === 'cover');
-            const pc = document.getElementById('printCompact'); if (pc) pc.checked = printCompact;
-            const pnl = document.getElementById('printNoLogo'); if (pnl) pnl.checked = printNoLogo;
-            const af = document.getElementById('autoFitPrint'); if (af) af.checked = !!autoFitPrint;
-            const upd = document.getElementById('updatePriceFromDocument'); if (upd) upd.checked = !!updatePriceFromDocument;
+            const setChk = function(id, on){ const el = document.getElementById(id); if (el) el.checked = !!on; };
+            setChk('simpleMode', localStorage.getItem('simpleMode') === 'true');
+            setChk('logoFitCover', logoFit === 'cover');
+            setChk('printCompact', localStorage.getItem('printCompact') === 'true');
+            setChk('printNoLogo', localStorage.getItem('printNoLogo') === 'true');
+            setChk('autoFitPrint', autoFitPrint);
+            setChk('updatePriceFromDocument', localStorage.getItem('updatePriceFromDocument') === 'true');
 
-            
-            if (companyLogo) {
-                const preview = document.getElementById('logoPreview');
-                preview.innerHTML = '<img id="logoPrevImg" src="'+companyLogo+'">';
-                applyLogoPreviewStyle();
+            const preview = document.getElementById('logoPreview');
+            if (preview) {
+                if (companyLogo) {
+                    preview.innerHTML = '<img id="logoPrevImg" src="'+companyLogo+'">';
+                    applyLogoPreviewStyle();
+                } else {
+                    preview.innerHTML = '';
+                }
             }
+            _settingsLoadedToForm = true;
         }
 
-        function saveCompanySettings() {
-            localStorage.setItem('companyName', document.getElementById('companyName').value);
-            localStorage.setItem('companyAddress', document.getElementById('companyAddress').value);
-            localStorage.setItem('companyNIP', document.getElementById('companyNIP').value);
-            localStorage.setItem('companyPhone', document.getElementById('companyPhone').value);
-            localStorage.setItem('companyEmail', document.getElementById('companyEmail').value);
-            localStorage.setItem('documentFooter', document.getElementById('documentFooter').value);
-            localStorage.setItem('simpleMode', document.getElementById('simpleMode').checked);
-            // Firebase sync ustawień
-            try { syncSettingsToFirebase(); } catch(e) {}
-            localStorage.setItem('logoFit', document.getElementById('logoFitCover') && document.getElementById('logoFitCover').checked ? 'cover' : 'contain');
-            localStorage.setItem('printCompact', document.getElementById('printCompact') && document.getElementById('printCompact').checked ? 'true' : 'false');
-            localStorage.setItem('printNoLogo', document.getElementById('printNoLogo') && document.getElementById('printNoLogo').checked ? 'true' : 'false');
-            localStorage.setItem('autoFitPrint', document.getElementById('autoFitPrint') && document.getElementById('autoFitPrint').checked ? 'true' : 'false');
-            localStorage.setItem('updatePriceFromDocument', document.getElementById('updatePriceFromDocument') && document.getElementById('updatePriceFromDocument').checked ? 'true' : 'false');
-
-            // dopisz wystawiającego do listy
-            const cn = document.getElementById('companyName').value.trim();
-            if (cn) saveIssuer(cn);
+        // Zapisuje ustawienia z formularza. Do chmury idą tylko wtedy, gdy coś się
+        // faktycznie zmieniło (albo force = true), z opóźnieniem – nie przy każdej literze.
+        function saveCompanySettings(force) {
+            if (!_settingsLoadedToForm) return; // formularz jeszcze niewypełniony – nie nadpisuj pustymi polami
+            const txt = function(id){ const el = document.getElementById(id); return el ? String(el.value) : ''; };
+            const chk = function(id){ const el = document.getElementById(id); return (el && el.checked) ? 'true' : 'false'; };
+            const vals = {
+                companyName: txt('companyName'),
+                companyAddress: txt('companyAddress'),
+                companyNIP: txt('companyNIP'),
+                companyPhone: txt('companyPhone'),
+                companyEmail: txt('companyEmail'),
+                documentFooter: txt('documentFooter'),
+                simpleMode: chk('simpleMode'),
+                logoFit: (chk('logoFitCover') === 'true') ? 'cover' : 'contain',
+                printCompact: chk('printCompact'),
+                printNoLogo: chk('printNoLogo'),
+                autoFitPrint: chk('autoFitPrint'),
+                updatePriceFromDocument: chk('updatePriceFromDocument')
+            };
+            let changed = false;
+            try {
+                Object.keys(vals).forEach(function(k){
+                    if (localStorage.getItem(k) !== vals[k]) { localStorage.setItem(k, vals[k]); changed = true; }
+                });
+                if ((localStorage.getItem('companyLogo') || '') !== (companyLogo || '')) {
+                    localStorage.setItem('companyLogo', companyLogo || '');
+                    changed = true;
+                }
+            } catch (e) {
+                console.error('Nie udało się zapisać ustawień:', e);
+                alert('Nie udało się zapisać ustawień w pamięci przeglądarki (za duże logo?).');
+            }
+            if (changed || force) {
+                localStorage.setItem('settingsModified', String(Date.now()));
+                try { syncSettingsToFirebase(); } catch(e) { console.error(e); }
+            }
         }
 
         // Issuer suggestions (datalist)
@@ -4678,58 +4841,9 @@ Przykład:
             const dl = document.getElementById('issuerDatalist');
             if (!dl) return;
             const list = getIssuers();
-            dl.innerHTML = list.map(function(v){ return '<option value="'+v.replace(/\"/g,'&quot;')+'"></option>'; }).join('');
+            dl.innerHTML = list.map(function(v){ return '<option value="'+escapeHtml(v)+'"></option>'; }).join('');
         }
 
-        // Autotest – wstrzyknięcie danych, asercje, snapshot/restore
-        let __autotest_snapshot = null;
-        function snapshotState(){
-            try{
-                __autotest_snapshot = JSON.stringify({clients,vehicles,orders,documents,services,products});
-            }catch(e){ __autotest_snapshot = null; }
-        }
-        function restoreAutotestSnapshot(){
-            try{
-                if (!__autotest_snapshot){ alert('Brak snapshotu – najpierw uruchom Autotest.'); return; }
-                const s = JSON.parse(__autotest_snapshot);
-                clients=s.clients||[]; vehicles=s.vehicles||[]; orders=s.orders||[]; documents=s.documents||[]; services=s.services||[]; products=s.products||[];
-                saveData(); loadData(); alert('Przywrócono stan sprzed testu.');
-            }catch(e){ alert('Przywracanie nie powiodło się: '+e); }
-        }
-        function assert(cond, msg, out){ if(!cond){ out.push('FAIL: '+msg); } else { out.push('OK: '+msg); } }
-        function runAutotest(){
-            const out=[]; snapshotState();
-            try{
-                // Zasiej przykładowe dane – 2 lata, 3 miesiące, różne typy
-                const today = new Date();
-                function d(y,m,day){ return y+'-'+String(m).padStart(2,'0')+'-'+String(day).padStart(2,'0'); }
-                const y1 = today.getFullYear()-1, y2 = today.getFullYear();
-                const seedDocs = [
-                    {type:'faktura', number:'FV/'+y1+'/01/001', date:d(y1,1,15), client:'Jan Kowalski', vehicle:'VW Golf', positions:[{name:'Olej 5L',quantity:1,price:200}], total:200, paymentMethod:'gotówka', paidAmount:200},
-                    {type:'paragon', number:'PAR/'+y1+'/02/001', date:d(y1,2,3), client:'ACME', vehicle:'Audi A4', positions:[{name:'Filtr powietrza',quantity:1,price:60}], total:60, paymentMethod:'karta', paidAmount:60},
-                    {type:'kosztorys', number:'KOS/'+y1+'/12/001', date:d(y1,12,20), client:'Jan Nowak', vehicle:'BMW 3', positions:[{name:'Diagnostyka',quantity:1,price:100}], total:100},
-                    {type:'faktura', number:'FV/'+y2+'/02/001', date:d(y2,2,10), client:'Jan Kowalski', vehicle:'VW Golf', positions:[{name:'Klocki hamulcowe',quantity:1,price:250}], total:250, paymentMethod:'gotówka', paidAmount:250},
-                    {type:'paragon', number:'PAR/'+y2+'/02/002', date:d(y2,2,28), client:'ACME', vehicle:'Audi A4', positions:[{name:'Żarówki H7',quantity:2,price:20}], total:40, paymentMethod:'gotówka', paidAmount:40},
-                    {type:'faktura', number:'FV/'+y2+'/03/001', date:d(y2,3,5), client:'XYZ Sp. z o.o.', vehicle:'Opel Astra', positions:[{name:'Olej 5L',quantity:1,price:210}], total:210, paymentMethod:'przelew', paidAmount:0}
-                ];
-                documents = seedDocs;
-                clients = [{name:'Stary Klient', phone:'', email:''}];
-                services = []; products=[];
-                // auto-uczenie słowników z dokumentów
-                documents.forEach(function(doc){ ensureFromDocument(doc); });
-                saveData();
-                // Asercje
-                assert(clients.find(function(c){return c.name==='Jan Kowalski';}), 'Auto-dopis klienta', out);
-                assert(products.find(function(p){return p.name==='Olej 5L';}), 'Auto-dopis produktu', out);
-                // Statystyki – proste sanity check
-                setActiveTab('annual'); const y = y2; localStorage.setItem('statsYear', String(y)); rebuildTimeFilters();
-                const docsY = documents.filter(function(d){ return d.date.indexOf(String(y)+'-')===0; });
-                assert(docsY.length>=2, 'Dokumenty w roku '+y, out);
-                // Kopia – fallback do localStorage jest bezbłędny (nie asercjonujemy FS)
-                out.push('INFO: Autotest zakończony.');
-            }catch(e){ out.push('BŁĄD AUTOTEST: '+e); }
-            alert(out.join('\n'));
-        }
 
         // Funkcje kopii zapasowych
         // Proste helpery IndexedDB do przechowywania uchwytów (FileSystemHandle)
@@ -4767,22 +4881,60 @@ Przykład:
                 req.onerror = function() { reject(req.error); };
             });
         }
+        // Przeglądarka po restarcie cofa zgodę na zapis do folderu i można ją odzyskać tylko
+        // po kliknięciu. Wcześniej program wtedy po cichu przestawał robić kopie do folderu –
+        // teraz pokazuje wyraźny pasek „kliknij, aby włączyć”.
         async function initBackupFolderHandle() {
             try {
                 const handle = await idbGet('backupDir');
-                if (handle && handle.queryPermission) {
-                    var perm = await handle.queryPermission({ mode: 'readwrite' });
-                    if (perm !== 'granted' && handle.requestPermission) {
-                        perm = await handle.requestPermission({ mode: 'readwrite' });
-                    }
-                    if (perm === 'granted') {
-                        window.backupDirHandle = handle;
-                        const pathEl = document.getElementById('backupPath');
-                        if (pathEl) pathEl.value = handle.name || '(wybrany folder)';
-                        localStorage.setItem('backupPath', handle.name || '(folder)');
-                    }
+                if (!handle || !handle.queryPermission) return;
+                const pathEl = document.getElementById('backupPath');
+                if (pathEl) pathEl.value = handle.name || '(wybrany folder)';
+                const perm = await handle.queryPermission({ mode: 'readwrite' });
+                if (perm === 'granted') {
+                    window.backupDirHandle = handle;
+                    localStorage.setItem('backupPath', handle.name || '(folder)');
+                    hideBackupNotice();
+                } else {
+                    window.backupDirHandle = null;
+                    window._backupDirPending = handle;
+                    showBackupNotice(handle.name || 'folder');
                 }
-            } catch (e) { /* brak IndexedDB lub brak zgody */ }
+            } catch (e) {
+                console.warn('[Kopia] Nie udało się odczytać folderu kopii:', e);
+            }
+        }
+        async function reconnectBackupFolder() {
+            const handle = window._backupDirPending;
+            if (!handle) return;
+            try {
+                const perm = await handle.requestPermission({ mode: 'readwrite' });
+                if (perm === 'granted') {
+                    window.backupDirHandle = handle;
+                    window._backupDirPending = null;
+                    hideBackupNotice();
+                    autoBackup(true);
+                }
+            } catch (e) {
+                alert('Nie udało się włączyć kopii do folderu: ' + (e && e.message ? e.message : e));
+            }
+        }
+        function showBackupNotice(folderName) {
+            let el = document.getElementById('_backupNotice');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = '_backupNotice';
+                el.style.cssText = 'position:fixed;bottom:10px;left:10px;padding:8px 12px;border-radius:4px;background:#d39e00;' +
+                    'color:white;font-size:12px;z-index:9999;cursor:pointer;max-width:45vw;';
+                el.addEventListener('click', reconnectBackupFolder);
+                document.body.appendChild(el);
+            }
+            el.textContent = '⚠ Kopie zapasowe do folderu „' + folderName + '” są wstrzymane – kliknij tutaj, aby je włączyć';
+            el.style.display = 'block';
+        }
+        function hideBackupNotice() {
+            const el = document.getElementById('_backupNotice');
+            if (el) el.style.display = 'none';
         }
         async function selectBackupFolder() {
             try {
@@ -4824,7 +4976,7 @@ Przykład:
                 const bom = '\uFEFF'; // BOM dla prawidłowego kodowania polskich znaków w Excelu
                 const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href=url; a.download='dokumenty_'+new Date().toISOString().split('T')[0]+'.csv'; a.click();
+                const a = document.createElement('a'); a.href=url; a.download='dokumenty_'+todayLocalISO()+'.csv'; a.click();
                 setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
             }catch(e){ alert('Eksport CSV nie powiódł się: '+e); }
         }
@@ -4836,7 +4988,7 @@ Przykład:
                 const bom = '\uFEFF'; // BOM dla prawidłowego kodowania polskich znaków w Excelu
                 const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href=url; a.download='pozycje_'+new Date().toISOString().split('T')[0]+'.csv'; a.click();
+                const a = document.createElement('a'); a.href=url; a.download='pozycje_'+todayLocalISO()+'.csv'; a.click();
                 setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
             }catch(e){ alert('Eksport CSV nie powiódł się: '+e); }
         }
@@ -4869,9 +5021,9 @@ Przykład:
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'Kopia_zapasowa_warsztat_'+ new Date().toISOString().split('T')[0] +'.json';
+            a.download = 'Kopia_zapasowa_warsztat_'+ todayLocalISO() +'.json';
             a.click();
-            URL.revokeObjectURL(url);
+            setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
         }
 
         function importData() {
@@ -4910,8 +5062,9 @@ Przykład:
                                 companyLogo = data.settings.companyLogo || '';
                             }
                             
+                            fbMarkLocalAuthoritative();
                             saveData();
-                            saveCompanySettings();
+                            saveCompanySettings(true);
                             loadData();
                             try { displayPriorities(); refreshPrioritySelect(); } catch(e) {}
                             alert('Dane zostały zaimportowane pomyślnie');
@@ -4926,51 +5079,202 @@ Przykład:
             }
         }
 
-        async function autoBackup() {
+        function buildBackupData() {
+            const txt = function(id){ const el = document.getElementById(id); return el ? el.value : ''; };
+            const chk = function(id){ const el = document.getElementById(id); return !!(el && el.checked); };
+            return {
+                clients: clients,
+                vehicles: vehicles,
+                orders: orders,
+                documents: documents,
+                services: services,
+                products: products,
+                priorities: priorities,
+                settings: {
+                    companyName: txt('companyName'),
+                    companyAddress: txt('companyAddress'),
+                    companyNIP: txt('companyNIP'),
+                    companyPhone: txt('companyPhone'),
+                    companyEmail: txt('companyEmail'),
+                    documentFooter: txt('documentFooter'),
+                    simpleMode: chk('simpleMode'),
+                    printCompact: chk('printCompact'),
+                    printNoLogo: chk('printNoLogo'),
+                    autoFitPrint: chk('autoFitPrint'),
+                    companyLogo: companyLogo
+                },
+                timestamp: new Date().toISOString()
+            };
+        }
+
+        // Kopia automatyczna: tylko gdy coś się zmieniło, jeden plik na dzień (nadpisywany
+        // w ciągu dnia) i najwyżej 60 ostatnich dni. Wcześniej co 5 minut powstawał nowy
+        // plik bez końca, także gdy nic się nie zmieniło.
+        let _lastBackupVersion = -1;
+        const BACKUP_KEEP_DAYS = 60;
+        async function autoBackup(force) {
+            if (!force && _lastBackupVersion === _dataVersion) return;
+            const versionAtStart = _dataVersion;
             try {
-                const data = {
-                    clients: clients,
-                    vehicles: vehicles,
-                    orders: orders,
-                    documents: documents,
-                    services: services,
-                    products: products,
-                    priorities: priorities,
-                    settings: {
-                        companyName: document.getElementById('companyName').value,
-                        companyAddress: document.getElementById('companyAddress').value,
-                        companyNIP: document.getElementById('companyNIP').value,
-                        companyPhone: document.getElementById('companyPhone').value,
-                        companyEmail: document.getElementById('companyEmail').value,
-                        documentFooter: document.getElementById('documentFooter').value,
-                        simpleMode: document.getElementById('simpleMode').checked,
-                        printCompact: document.getElementById('printCompact') && document.getElementById('printCompact').checked,
-                        printNoLogo: document.getElementById('printNoLogo') && document.getElementById('printNoLogo').checked,
-                        autoFitPrint: document.getElementById('autoFitPrint') && document.getElementById('autoFitPrint').checked,
-                        companyLogo: companyLogo
-                    },
-                    timestamp: new Date().toISOString()
-                };
+                const data = buildBackupData();
                 if (window.backupDirHandle) {
-                    const now = new Date();
-                    const y = now.getFullYear();
-                    const m = String(now.getMonth()+1).padStart(2,'0');
-                    const d = String(now.getDate()).padStart(2,'0');
-                    const hh = String(now.getHours()).padStart(2,'0');
-                    const mm = String(now.getMinutes()).padStart(2,'0');
-                    const ss = String(now.getSeconds()).padStart(2,'0');
-                    const fileName = 'warsztat_autokopia_'+y+m+d+'_'+hh+mm+ss+'.json';
-                    const fileHandle = await window.backupDirHandle.getFileHandle(fileName, { create: true });
+                    const dir = window.backupDirHandle;
+                    const fileName = 'warsztat_autokopia_' + todayLocalISO().replace(/-/g, '') + '.json';
+                    const fileHandle = await dir.getFileHandle(fileName, { create: true });
                     const writable = await fileHandle.createWritable();
                     await writable.write(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
                     await writable.close();
+                    await pruneOldBackups(dir);
                 } else {
-                    // Fallback – przechowaj w localStorage
-                    localStorage.setItem('autoBackup', JSON.stringify(data));
+                    // Brak folderu – zapasowa kopia w pamięci przeglądarki (bez logo, żeby nie zapychać miejsca)
+                    const slim = Object.assign({}, data, { settings: Object.assign({}, data.settings, { companyLogo: '' }) });
+                    localStorage.setItem('autoBackup', JSON.stringify(slim));
+                }
+                _lastBackupVersion = versionAtStart;
+            } catch (e) {
+                console.warn('[Kopia] Automatyczna kopia nie powiodła się:', e);
+                if (window.backupDirHandle && e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) {
+                    // Zgoda na zapis wygasła – poproś o ponowne włączenie
+                    window._backupDirPending = window.backupDirHandle;
+                    window.backupDirHandle = null;
+                    try { showBackupNotice(window._backupDirPending.name || 'folder'); } catch (e2) {}
+                }
+            }
+        }
+        async function pruneOldBackups(dir) {
+            try {
+                if (!dir || !dir.keys) return;
+                const names = [];
+                for await (const name of dir.keys()) {
+                    // Tylko pliki dzienne w nowym formacie; starszych (z godziną w nazwie) nie ruszamy
+                    if (/^warsztat_autokopia_\d{8}\.json$/.test(name)) names.push(name);
+                }
+                names.sort();
+                while (names.length > BACKUP_KEEP_DAYS) {
+                    await dir.removeEntry(names.shift());
                 }
             } catch (e) {
-                // Ciche niepowodzenie – nie blokujemy zamykania karty
+                console.warn('[Kopia] Porządkowanie starych kopii nie powiodło się:', e);
             }
+        }
+
+        // ================= SŁOWNIK POZYCJI (podpowiedzi) =================
+        // Jeden słownik: lista „Towary i usługi” (products). Dawny drugi słownik (services)
+        // był jego kopią – jest wchłaniany przez unifyDictionaries().
+        //
+        // „Ta sama pozycja” = ta sama nazwa po odrzuceniu wielkości liter, polskich znaków,
+        // kropek, przecinków i spacji. Do tego literówki: pozycja różniąca się jedną literą
+        // w dłuższym słowie nie tworzy nowego wpisu w słowniku (w dokumencie zostaje tak,
+        // jak została wpisana).
+        function itemTokens(s) {
+            return String(s || '').toLowerCase().replace(/ł/g, 'l')
+                .normalize('NFD').replace(/[̀-ͯ]/g, '')
+                .split(/[^a-z0-9]+/).filter(Boolean);
+        }
+        function itemKey(s) {
+            const key = itemTokens(s).join('');
+            return key || normKey(s);
+        }
+
+        // Odległość edycyjna (zamiana sąsiednich liter liczy się jako 1 błąd)
+        function editDistance(a, b) {
+            const la = a.length, lb = b.length;
+            if (a === b) return 0;
+            if (!la) return lb;
+            if (!lb) return la;
+            let prev2 = null;
+            let prev = [];
+            for (let j = 0; j <= lb; j++) prev[j] = j;
+            for (let i = 1; i <= la; i++) {
+                const cur = [i];
+                for (let j = 1; j <= lb; j++) {
+                    const cost = (a[i - 1] === b[j - 1]) ? 0 : 1;
+                    let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+                    if (prev2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+                        v = Math.min(v, prev2[j - 2] + 1);
+                    }
+                    cur[j] = v;
+                }
+                prev2 = prev;
+                prev = cur;
+            }
+            return prev[lb];
+        }
+
+        // Czy dwie nazwy to najpewniej ta sama pozycja z literówką / inną końcówką.
+        // Ostrożnie: liczby i oznaczenia (5w30, H7), krótkie słowa (L/P, lewy, tył) oraz
+        // pierwsza litera słowa muszą się zgadzać – żeby nie skleić np. „wewnętrzny”
+        // z „zewnętrzny” ani oleju 5W30 z 5W40.
+        function itemsSimilar(tokA, tokB) {
+            if (!tokA.length || tokA.length !== tokB.length) return false;
+            let total = 0;
+            for (let i = 0; i < tokA.length; i++) {
+                const x = tokA[i], y = tokB[i];
+                if (x === y) continue;
+                if (x.length < 5 || y.length < 5) return false;
+                if (/\d/.test(x) || /\d/.test(y)) return false;
+                if (x[0] !== y[0]) return false;
+                if (Math.abs(x.length - y.length) > 1) return false;
+                const d = editDistance(x, y);
+                if (d > 1) return false;
+                total += d;
+                if (total > 2) return false;
+            }
+            return true;
+        }
+
+        function findDictionaryIndex(name, allowFuzzy) {
+            const key = itemKey(name);
+            if (!key) return -1;
+            const exact = (products || []).findIndex(function(p){ return p && p.name && itemKey(p.name) === key; });
+            if (exact !== -1 || !allowFuzzy) return exact;
+            const tok = itemTokens(name);
+            return (products || []).findIndex(function(p){ return p && p.name && itemsSimilar(tok, itemTokens(p.name)); });
+        }
+
+        // Ile razy i kiedy ostatnio dana pozycja była w dokumentach (liczone z archiwum,
+        // więc zawsze zgodne z prawdą – także po synchronizacji z innym komputerem)
+        let _dataVersion = 0;
+        let _itemUsageCache = { version: -1, map: null };
+        function getItemUsageMap() {
+            if (_itemUsageCache.map && _itemUsageCache.version === _dataVersion) return _itemUsageCache.map;
+            const map = new Map();
+            (documents || []).forEach(function(doc){
+                if (!doc) return;
+                const date = String(doc.date || '');
+                (doc.positions || []).forEach(function(p){
+                    const k = itemKey(p && p.name);
+                    if (!k) return;
+                    let u = map.get(k);
+                    if (!u) { u = { count: 0, last: '', lastPrice: 0 }; map.set(k, u); }
+                    u.count++;
+                    if (date >= u.last) { u.last = date; u.lastPrice = Number(p.price) || 0; }
+                });
+            });
+            _itemUsageCache = { version: _dataVersion, map: map };
+            return map;
+        }
+
+        // Wchłania dawny słownik „services” do „products”. Zwraca true, gdy coś przeniesiono.
+        function unifyDictionaries() {
+            if (!Array.isArray(products)) products = [];
+            if (!Array.isArray(services)) services = [];
+            if (!services.length) return false;
+            const seen = new Map();
+            products.forEach(function(p, i){ const k = itemKey(p && p.name); if (k && !seen.has(k)) seen.set(k, i); });
+            services.forEach(function(s){
+                const k = itemKey(s && s.name);
+                if (!k) return;
+                if (seen.has(k)) {
+                    const p = products[seen.get(k)];
+                    if (!Number(p.price) && Number(s.price)) p.price = Number(s.price);
+                } else {
+                    products.push({ name: normalizeItemName(s.name), price: Number(s.price) || 0 });
+                    seen.set(k, products.length - 1);
+                }
+            });
+            services = [];
+            return true;
         }
 
         // Automatyczny dopis klienta oraz towarów/usług na podstawie dokumentu
@@ -4984,14 +5288,14 @@ Przykład:
             name = normalizeItemName(name);
             if (!name) return;
             const p = Number(price)||0;
-            const byName = function(obj){ return obj && obj.name && obj.name.trim().toLowerCase() === name.toLowerCase(); };
             const upd = (localStorage.getItem('updatePriceFromDocument') === 'true');
-            // Produkty (zakładka Towary i usługi)
-            const prodIdx = (products||[]).findIndex(byName);
-            if (prodIdx === -1){ products.push({ name: name, price: p }); } else if (upd) { products[prodIdx].price = p; }
-            // Słownik usług/produktów (podpowiedzi)
-            const servIdx = (services||[]).findIndex(byName);
-            if (servIdx === -1){ services.push({ name: name, price: p }); } else if (upd) { services[servIdx].price = p; }
+            const idx = findDictionaryIndex(name, true);
+            if (idx === -1) {
+                products.push({ name: name, price: p });
+            } else if (p > 0 && (upd || !Number(products[idx].price))) {
+                // Cena wg ostatniego dokumentu (jeśli włączone) albo uzupełnienie brakującej
+                products[idx].price = p;
+            }
         }
         function ensureFromDocument(doc){
             if (!doc) return;
@@ -5002,18 +5306,31 @@ Przykład:
         // Funkcje zapisywania i ładowania danych
         let fileHandle = null; // Przechowuje uchwyt do pliku
         
+        // Zapis wszystkich danych w pamięci przeglądarki (bez wysyłki do chmury)
+        function persistLocal() {
+            try {
+                FB_COLLECTIONS.forEach(function(coll){
+                    localStorage.setItem(coll, JSON.stringify(fbGetLocal(coll) || []));
+                });
+                return true;
+            } catch (e) {
+                console.error('[Zapis] Nie udało się zapisać w pamięci przeglądarki:', e);
+                if (!window._storageWarned) {
+                    window._storageWarned = true;
+                    alert('UWAGA: nie udało się zapisać danych w pamięci przeglądarki (prawdopodobnie brak miejsca).\n\nZrób teraz „Eksportuj bazę danych (JSON)” w Ustawieniach, żeby nie stracić zmian.');
+                }
+                return false;
+            }
+        }
+
         function saveData() {
+            unifyDictionaries();
+            _dataVersion++;
             // Zawsze zapisuj do localStorage
-            localStorage.setItem('clients', JSON.stringify(clients));
-            localStorage.setItem('vehicles', JSON.stringify(vehicles));
-            localStorage.setItem('orders', JSON.stringify(orders));
-            localStorage.setItem('documents', JSON.stringify(documents));
-            localStorage.setItem('services', JSON.stringify(services));
-            localStorage.setItem('products', JSON.stringify(products));
-            saveCompanySettings();
-            // Firebase sync (debounce 2s)
-            try { syncToFirebase(); } catch(e) {}
-            
+            persistLocal();
+            // Firebase sync (z krótkim opóźnieniem)
+            try { syncToFirebase(); } catch(e) { console.error('[Firebase] Błąd synchronizacji:', e); }
+
             // Jeśli włączony automatyczny zapis do pliku
             if (document.getElementById('autoSaveToFile') && document.getElementById('autoSaveToFile').checked) {
                 saveToFile();
@@ -5117,7 +5434,9 @@ Przykład:
                     }
                     
                     // Zapisz do localStorage i odśwież
+                    fbMarkLocalAuthoritative();
                     saveData();
+                    saveCompanySettings(true);
                     loadData();
                     
                     // Zachowaj uchwyt do pliku jeśli auto-zapis włączony
@@ -5137,6 +5456,8 @@ Przykład:
         }
 
         function loadData() {
+            // Dawny drugi słownik (services) wchłaniany jest do listy „Towary i usługi”
+            unifyDictionaries();
             // Inicjalizuj domyślne priorytety jeśli nie istnieją
             if (priorities.length === 0) {
                 priorities = [
@@ -5164,51 +5485,104 @@ Przykład:
         function normalizeClientName(s){ return normalizeName(s); }
         function normalizeItemName(s){ return normalizeName(s); }
         function normKey(s){ return normalizeName(s).toLowerCase(); }
+        // Plan porządków w słowniku: te same nazwy (różniące się tylko wielkością liter,
+        // polskimi znakami, kropkami, spacjami) oraz nazwy z literówką łączone są w jeden
+        // wpis. Zostaje pisownia używana najczęściej w dokumentach.
+        function planDictionaryCleanup() {
+            unifyDictionaries();
+            const usage = getItemUsageMap();
+            const entries = [];
+            (products || []).forEach(function(p, i){
+                if (!p || !p.name) return;
+                const name = normalizeItemName(p.name);
+                const key = itemKey(name);
+                if (!key) return;
+                const u = usage.get(key);
+                entries.push({ name: name, key: key, tokens: itemTokens(name), price: Number(p.price) || 0, count: u ? u.count : 0, pos: i });
+            });
+            const sorted = entries.slice().sort(function(a, b){ return (b.count - a.count) || (a.pos - b.pos); });
+            const clusters = [];
+            const byKey = new Map();
+            const examples = [];
+            const removedKeys = [];
+            let exact = 0, fuzzy = 0;
+            sorted.forEach(function(e){
+                let c = byKey.get(e.key);
+                if (c) {
+                    exact++;
+                } else {
+                    c = clusters.find(function(x){ return itemsSimilar(x.tokens, e.tokens); });
+                    if (c) {
+                        fuzzy++;
+                        byKey.set(e.key, c);
+                        removedKeys.push(e.key);
+                        if (examples.length < 12) examples.push('„' + e.name + '”  →  „' + c.name + '”');
+                    }
+                }
+                if (c) {
+                    if (!c.price && e.price) c.price = e.price;
+                    if (e.pos < c.pos) c.pos = e.pos;
+                    return;
+                }
+                c = { name: e.name, key: e.key, tokens: e.tokens, price: e.price, pos: e.pos };
+                clusters.push(c);
+                byKey.set(e.key, c);
+            });
+            clusters.sort(function(a, b){ return a.pos - b.pos; });
+            return {
+                list: clusters.map(function(c){ return { name: c.name, price: c.price }; }),
+                exact: exact, fuzzy: fuzzy, examples: examples, removedKeys: removedKeys,
+                before: entries.length
+            };
+        }
+
+        // Przycisk „Porządkuj słownik” w zakładce Towary i usługi
+        function cleanupDictionary() {
+            try {
+                const plan = planDictionaryCleanup();
+                if (!plan.exact && !plan.fuzzy) {
+                    saveData(); displayProducts();
+                    alert('Słownik jest uporządkowany – nie znaleziono powtórzeń ani podobnych nazw.\nPozycji w słowniku: ' + plan.list.length);
+                    return;
+                }
+                let msg = 'Słownik: ' + plan.before + ' pozycji → po porządkach ' + plan.list.length + '.\n' +
+                    '- takie same nazwy (różnica w wielkości liter, kropkach, spacjach): ' + plan.exact + '\n' +
+                    '- nazwy z literówką / inną końcówką: ' + plan.fuzzy + '\n';
+                if (plan.examples.length) msg += '\nPrzykłady łączenia:\n' + plan.examples.join('\n') + (plan.fuzzy > plan.examples.length ? '\n…' : '') + '\n';
+                msg += '\nDokumenty w archiwum się nie zmieniają – porządkowana jest tylko lista podpowiedzi.\nWykonać?';
+                if (!confirm(msg)) return;
+                plan.removedKeys.forEach(function(k){ markDeletedKey('products', k); });
+                products = plan.list;
+                saveData();
+                displayProducts();
+                alert('Gotowe. W słowniku zostało ' + products.length + ' pozycji.');
+            } catch (e) { alert('Błąd porządkowania słownika: ' + e); }
+        }
+
         function normalizeAndDedup(promptUser){
             try{
-                // Klienci
+                // Klienci – scal po nazwie, zachowując wszystkie pola rekordu (adres itp.)
                 const mapC = new Map();
                 let mergedC = 0;
                 (clients||[]).forEach(function(c){
                     const key = normKey(c && c.name);
                     if (!key) return;
-                    const name = normalizeClientName(c.name);
-                    const phone = (c && c.phone) || '';
-                    const email = (c && c.email) || '';
                     if (!mapC.has(key)){
-                        mapC.set(key, { name: name, phone: phone, email: email });
+                        mapC.set(key, Object.assign({}, c, { name: normalizeClientName(c.name), phone: c.phone || '', email: c.email || '' }));
                     } else {
                         const t = mapC.get(key);
-                        if (!t.phone && phone) t.phone = phone;
-                        if (!t.email && email) t.email = email;
+                        Object.keys(c).forEach(function(f){ if (f !== 'name' && !t[f] && c[f]) t[f] = c[f]; });
                         mergedC++;
                     }
                 });
                 const newClients = Array.from(mapC.values());
-                // Usługi/produkty
-                function dedupPriced(arr){
-                    const m = new Map(); let merged=0;
-                    (arr||[]).forEach(function(it){
-                        const key = normKey(it && it.name);
-                        if (!key) return;
-                        const nm = normalizeItemName(it.name);
-                        const price = Number(it && it.price || 0) || 0;
-                        if (!m.has(key)){
-                            m.set(key, { name: nm, price: price });
-                        } else {
-                            const t = m.get(key);
-                            if (price && (localStorage.getItem('updatePriceFromDocument')==='true') && price!==t.price){ t.price = price; }
-                            merged++;
-                        }
-                    });
-                    return { list: Array.from(m.values()), merged: merged };
-                }
-                const rS = dedupPriced(services);
-                const rP = dedupPriced(products);
-                const msg = 'Znormalizowano i scalono:\n- klienci: '+mergedC+' duplikatów\n- usługi: '+rS.merged+' duplikatów\n- produkty: '+rP.merged+' duplikatów';
+                const plan = planDictionaryCleanup();
+                let msg = 'Znormalizowano i scalono:\n- klienci: '+mergedC+' duplikatów\n- słownik pozycji: '+plan.exact+' takich samych nazw, '+plan.fuzzy+' z literówką';
+                if (plan.examples.length) msg += '\n\nPrzykłady łączenia w słowniku:\n' + plan.examples.join('\n');
                 if (!promptUser || confirm('Wykonać normalizację i scalanie?\n'+msg)){
-                    clients = newClients; services = rS.list; products = rP.list;
-                    saveData(); displayClients(); displayServices(); displayProducts();
+                    plan.removedKeys.forEach(function(k){ markDeletedKey('products', k); });
+                    clients = newClients; products = plan.list;
+                    saveData(); displayClients(); displayProducts();
                     alert('OK. '+msg);
                 }
             }catch(e){ alert('Błąd normalizacji: '+e); }
@@ -5226,7 +5600,7 @@ Przykład:
                     if (seen.has(key)) { skipped++; return; }
                     seen.add(key);
                     const idxP = products.findIndex(function(p){ return normKey(p.name)===key; });
-                    const idxS = services.findIndex(function(s){ return normKey(s.name)===key; });
+                    const idxS = idxP; // jeden wspólny słownik (products)
                     if (idxP===-1){ products.push({name:name, price:0}); added++; }
                     if (idxS===-1){ services.push({name:name, price:0}); if (idxP!==-1) added++; }
                 });
@@ -5251,7 +5625,7 @@ Przykład:
                     let price = parseFloat(priceStr); if (isNaN(price)) price = 0;
                     const key = normKey(name);
                     const idxP = products.findIndex(function(p){ return normKey(p.name)===key; });
-                    const idxS = services.findIndex(function(s){ return normKey(s.name)===key; });
+                    const idxS = idxP; // jeden wspólny słownik (products)
                     let addedP=false, addedS=false, updatedThis=false;
                     if (idxP===-1){ products.push({name:name, price:price}); addedP=true; }
                     else if (upd && Number(products[idxP].price)!==Number(price) && price>0){ products[idxP].price = price; updatedThis=true; }
@@ -5595,7 +5969,7 @@ Przykład:
             } else {
                 priorities.push({ name: name, description: description || name });
             }
-            localStorage.setItem('priorities', JSON.stringify(priorities));
+            saveData();
             document.getElementById('priorityName').value = '';
             document.getElementById('priorityDescription').value = '';
             displayPriorities();
@@ -5604,7 +5978,7 @@ Przykład:
         function deletePriority(index) {
             if (confirm('Usunąć priorytet?')) {
                 priorities.splice(index, 1);
-                localStorage.setItem('priorities', JSON.stringify(priorities));
+                saveData();
                 displayPriorities();
                 refreshPrioritySelect();
             }
@@ -5632,26 +6006,19 @@ Przykład:
             sel.value = current;
         }
         function buildPrioritySelectHTML(selectedValue) {
-            let html = '<select onchange="updatePositionPriority(this)">';
+            let html = '<select data-pos-field="priority">';
             html += '<option value="">-- brak --</option>';
+            let found = !selectedValue;
             priorities.forEach(function(p) {
                 const val = p.description || p.name;
                 const selected = (val === selectedValue) ? ' selected' : '';
+                if (selected) found = true;
                 html += '<option value="'+escapeHtml(val)+'"'+selected+'>'+escapeHtml(p.name)+'</option>';
             });
+            // Priorytet spoza słownika (np. nadany przez AI) – zachowaj, zamiast gubić przy zapisie
+            if (!found) html += '<option value="'+escapeHtml(selectedValue)+'" selected>'+escapeHtml(selectedValue)+'</option>';
             html += '</select>';
             return html;
-        }
-        function updatePositionPriority(selectEl) {
-            const row = selectEl.closest('tr');
-            const tbody = document.getElementById('documentPositions');
-            const index = Array.prototype.indexOf.call(tbody.rows, row);
-            if (index < 0) return;
-            const positions = getActivePositions();
-            if (positions[index]) {
-                positions[index].priority = selectEl.value;
-                if (currentEditingDocument !== null) saveData();
-            }
         }
 
         // === FUNKCJE ASYSTENTA AI ===
@@ -6820,7 +7187,16 @@ Lub powiedz mi czego szukasz, a postaram się pomóc!
                 z-index: 10000;
                 box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             }
-            
+
+            /* Puste pudełko podpowiedzi ma zerową wysokość, ale nadal rysuje
+               własną ramkę – na ekranie wychodziła z tego szara kreska szerokości
+               pola, przyklejona na sztywno (position: fixed), więc nie przewijała
+               się razem z oknem. Podpowiedzi są „chowane” samym wyczyszczeniem
+               środka (innerHTML=''), dlatego pustego pudełka po prostu nie pokazujemy. */
+            .suggestions:empty {
+                display: none;
+            }
+
             .suggestions div:hover {
                 background-color: #f0f0f0;
             }
